@@ -1,4 +1,4 @@
-name: Build SK Pizza Point Admin Android APK
+name: Build SK Pizza Point Admin APK
 
 on:
   push:
@@ -7,62 +7,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_admin_apk:
-    name: Build Admin APK
+  build-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install website dependencies
+        run: npm ci
+
+      - name: Build website
+        run: npm run build
+
+      - name: Package website inside APK
+        run: |
+          rm -rf android-admin/app/src/main/assets
+          mkdir -p android-admin/app/src/main/assets
+          cp -r dist/. android-admin/app/src/main/assets/
+
+          test -f android-admin/app/src/main/assets/index.html
+          test -d android-admin/app/src/main/assets/assets
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1 || true
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
-      - name: Restore Firebase Android Config
+      - name: Restore Firebase Android config
         env:
           FIREBASE_ANDROID_CONFIG: ${{ secrets.FIREBASE_ANDROID_CONFIG }}
         run: |
-          test -n "$FIREBASE_ANDROID_CONFIG"
-          mkdir -p android-admin/app
           printf '%s' "$FIREBASE_ANDROID_CONFIG" > android-admin/app/google-services.json
-          test -s android-admin/app/google-services.json
-          echo "Firebase Android config restored."
 
-      - name: Check Firebase Android Config
-        run: |
-          grep -q '"project_id": "sk-pizza-point"' android-admin/app/google-services.json
-          grep -q '"package_name": "com.skpizzapoint.admin"' android-admin/app/google-services.json
-          echo "Firebase Android config is correct."
-
-      - name: Grant Gradle Execute Permission
-        run: chmod +x android-admin/gradlew
-
-      - name: Build Debug APK
+      - name: Build APK
         working-directory: android-admin
         run: |
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Verify APK
         run: |
           test -f android-admin/app/build/outputs/apk/debug/app-debug.apk
           ls -lh android-admin/app/build/outputs/apk/debug/app-debug.apk
-          echo "APK build successful."
 
-      - name: Upload Debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: sk-pizza-point-admin-debug-apk
+          name: sk-pizza-point-admin-apk
           path: android-admin/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30

@@ -8,3 +8,10 @@ coverage/
 !.env.example
 .firebase/
 android-admin/app/google-services.json
+android-admin/local.properties
+android-admin/app/src/main/assets/
+
+# Android/Gradle local files
+android-admin/.gradle/
+android-admin/local.properties
+android-admin/app/build/
