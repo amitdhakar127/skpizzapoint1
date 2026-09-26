@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">SK Pizza Point Admin</string>
+    <string name="admin_portal">SK Pizza Point • Admin Console</string>
+    <string name="login">Login to Admin</string>
+    <string name="email_hint">Admin Email Address</string>
+    <string name="password_hint">Password</string>
+    <string name="orders_tab">Orders</string>
+    <string name="products_tab">Products</string>
+    <string name="settings_tab">Store Status</string>
+    <string name="active_orders">Active Orders</string>
+    <string name="all_products">Menu &amp; Products</string>
+    <string name="add_product">Add Product</string>
+    <string name="stop_alarm">STOP ALARM</string>
+    <string name="new_order_alert">🚨 New Order Received!</string>
+    <string name="channel_name">New Order Alerts</string>
+    <string name="channel_desc">Loud continuous alarms for incoming orders</string>
+</resources>

@@ -1,10 +1,67 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // SK Pizza Point Firestore Rules (Backup / Multi-service)
+    
+    // Function to verify if caller is the authorized SK Pizza Point Administrator
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == 'vxIlz4pYZgM646mXmp2BQuXtYz32' ||
+        request.auth.token.email == 'zyvoraofficial3@gmail.com' ||
+        request.auth.token.email == 'skpizzapoint@gmail.com'
+      );
+    }
+
+    // Products: anyone can view; only authorized admin can create, update, or delete
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders: anyone can place an order; customers can read their own; only admin can update status / delete
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Store settings: public read for menu and status; admin only write
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Broadcast announcements: public read; admin only write
+    match /broadcasts/{broadcastId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Reviews: anyone can read and submit; only admin can approve or delete
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Media (gallery and videos): public read; admin only write
+    match /gallery/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /videos/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User profiles: users can manage their own profile; admin can read/write all
+    match /users/{userId} {
+      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Default fallback: allow read; require admin for write
     match /{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
   }
 }
