@@ -23,12 +23,11 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0"
 
       - name: Restore Firebase Android Config
         env:
