@@ -8,11 +8,8 @@ on:
 
 jobs:
   build_admin_apk:
-    name: Build Admin APK (Debug & Release)
+    name: Build Admin APK
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - name: Checkout Repository
@@ -21,52 +18,52 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-          cache: 'gradle'
+          cache: gradle
 
-      - name: Accept Android SDK Licenses
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+
+      - name: Restore Firebase Android Config
+        env:
+          FIREBASE_ANDROID_CONFIG: ${{ secrets.FIREBASE_ANDROID_CONFIG }}
         run: |
-          echo "Using Android SDK at $ANDROID_HOME"
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          test -n "$FIREBASE_ANDROID_CONFIG"
+          mkdir -p android-admin/app
+          printf '%s' "$FIREBASE_ANDROID_CONFIG" > android-admin/app/google-services.json
+          test -s android-admin/app/google-services.json
+          echo "Firebase Android config restored."
 
-      - name: Grant Execute Permission to Gradle Wrapper
+      - name: Check Firebase Android Config
+        run: |
+          grep -q '"project_id": "sk-pizza-point"' android-admin/app/google-services.json
+          grep -q '"package_name": "com.skpizzapoint.admin"' android-admin/app/google-services.json
+          echo "Firebase Android config is correct."
+
+      - name: Grant Gradle Execute Permission
         run: chmod +x android-admin/gradlew
 
       - name: Build Debug APK
+        working-directory: android-admin
         run: |
-          cd android-admin
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Verify APK
+        run: |
+          test -f android-admin/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh android-admin/app/build/outputs/apk/debug/app-debug.apk
+          echo "APK build successful."
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: sk-pizza-point-admin-debug-apk
           path: android-admin/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
-
-      # Optional Release APK signing if secrets are configured in GitHub repository
-      - name: Build Release APK (Signed)
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android-admin/app/release.keystore
-          cd android-admin
-          ./gradlew assembleRelease --no-daemon \
-            -Pandroid.injected.signing.store.file=release.keystore \
-            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
-
-      - name: Upload Release APK Artifact
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: sk-pizza-point-admin-release-apk
-          path: android-admin/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
