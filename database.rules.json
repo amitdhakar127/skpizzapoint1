@@ -1,0 +1,43 @@
+{
+  "rules": {
+    "settings": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com')"
+    },
+    "products": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com')"
+    },
+    "gallery": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com')"
+    },
+    "videos": {
+      ".read": true,
+      ".write": "auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com')"
+    },
+    "reviews": {
+      ".read": true,
+      ".write": true
+    },
+    "orders": {
+      ".read": true,
+      ".write": true
+    },
+    "userOrders": {
+      ".read": true,
+      ".write": true
+    },
+    "broadcasts": {
+      ".read": true,
+      ".write": true
+    },
+    "users": {
+      ".read": true,
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32') || true"
+      }
+    }
+  }
+}

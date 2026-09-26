@@ -1,0 +1,6 @@
+{
+  "name": "SK Pizza Point",
+  "description": "Premium restaurant web application for SK Pizza Point featuring Firebase Authentication, secure UID-locked Admin Studio, real-time cloud database synchronization, cinematic video hero, direct WhatsApp ordering, and customer account portal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
