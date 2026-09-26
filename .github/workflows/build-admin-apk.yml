@@ -1,4 +1,4 @@
-name: Build SK Pizza Point Admin APK
+name: Build SK Pizza Point Admin URL APK
 
 on:
   push:
@@ -13,27 +13,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install website dependencies
-        run: npm ci
-
-      - name: Build website
-        run: npm run build
-
-      - name: Package website inside APK
-        run: |
-          rm -rf android-admin/app/src/main/assets
-          mkdir -p android-admin/app/src/main/assets
-          cp -r dist/. android-admin/app/src/main/assets/
-
-          test -f android-admin/app/src/main/assets/index.html
-          test -d android-admin/app/src/main/assets/assets
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -69,6 +48,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: sk-pizza-point-admin-apk
+          name: sk-pizza-point-admin-url-apk
           path: android-admin/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
