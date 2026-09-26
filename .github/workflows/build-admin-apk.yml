@@ -24,6 +24,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Grant Execute Permission to Gradle Wrapper
         run: chmod +x android-admin/gradlew
@@ -41,7 +46,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Optional Release APK signing if secrets are configured in GitHub repo
+      # Optional Release APK signing if secrets are configured in GitHub repository
       - name: Build Release APK (Signed)
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:

@@ -22,21 +22,27 @@
     },
     "orders": {
       ".read": true,
-      ".write": true
+      "$orderId": {
+        ".read": true,
+        ".write": "!data.exists() || (auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com'))"
+      }
     },
     "userOrders": {
       ".read": true,
-      ".write": true
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32')",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32') || !data.exists()"
+      }
     },
     "broadcasts": {
       ".read": true,
-      ".write": true
+      ".write": "auth != null && (auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32' || auth.token.email === 'zyvoraofficial3@gmail.com' || auth.token.email === 'skpizzapoint@gmail.com')"
     },
     "users": {
       ".read": true,
       "$uid": {
         ".read": true,
-        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32') || true"
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'vxIlz4pYZgM646mXmp2BQuXtYz32')"
       }
     }
   }
