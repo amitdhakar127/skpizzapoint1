@@ -152,19 +152,6 @@ export const Header: React.FC = () => {
               </button>
             )}
 
-            {/* Admin Studio Link */}
-            <button
-              onClick={() => handleNavClick(isAdmin ? '/admin' : '/admin/login')}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                isAdmin
-                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
-                  : 'text-[#6B5B4F] hover:text-amber-800 hover:bg-amber-100/60'
-              }`}
-              title={isAdmin ? 'Admin Studio (Active)' : 'Admin Studio Login'}
-            >
-              <Lock className="w-4 h-4" />
-            </button>
-
             {/* Active Announcement Bell Indicator */}
             {activeBroadcast && (
               <button
@@ -320,15 +307,15 @@ export const Header: React.FC = () => {
                   className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-100 text-[#1E1915] text-xs font-semibold flex items-center justify-center gap-2"
                 >
                   <Phone className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Call Us</span>
+                  <span>Call Us ({settings.whatsAppNumber})</span>
                 </a>
 
                 <button
-                  onClick={() => handleNavClick(isAdmin ? '/admin' : '/admin/login')}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-100 text-[#1E1915] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={() => handleNavClick('/track')}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-amber-100 text-amber-950 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Lock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Admin Studio</span>
+                  <Navigation className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Track Order</span>
                 </button>
               </div>
             </div>

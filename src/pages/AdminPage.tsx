@@ -128,7 +128,26 @@ export const AdminPage: React.FC = () => {
   const [newBroadcastBadge, setNewBroadcastBadge] = useState('HOT DEAL');
   const [orderFilterStatus, setOrderFilterStatus] = useState<string>('all');
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
-  const [ordersViewMode, setOrdersViewMode] = useState<'sheet' | 'cards'>('sheet');
+  const [ordersViewMode, setOrdersViewMode] = useState<'sheet' | 'cards'>('cards');
+
+  const isOrderMatchingFilter = (ord: Order, filter: string) => {
+    if (filter === 'all') return true;
+    const s = (ord.status || '').toLowerCase().trim();
+    const f = filter.toLowerCase().trim();
+    if (f === 'pending') {
+      return s.includes('pending') || s.includes('received') || s.includes('whatsapp') || s === 'draft';
+    }
+    if (f === 'preparing') {
+      return s.includes('prep') || s.includes('confirm') || s.includes('ready');
+    }
+    if (f === 'out for delivery') {
+      return (s.includes('out') || s.includes('delivery')) && !s.includes('delivered');
+    }
+    if (f === 'delivered') {
+      return s.includes('deliver') || s.includes('completed');
+    }
+    return s === f;
+  };
 
   // Product Editing / Creation State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -821,10 +840,10 @@ export const AdminPage: React.FC = () => {
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
                   {[
                     { id: 'all', label: `All Orders (${orders.length})` },
-                    { id: 'Pending', label: `Pending (${orders.filter((o) => o.status === 'Pending').length})` },
-                    { id: 'Preparing', label: `Preparing (${orders.filter((o) => o.status === 'Preparing').length})` },
-                    { id: 'Out for delivery', label: `Out for Delivery (${orders.filter((o) => o.status === 'Out for delivery').length})` },
-                    { id: 'Delivered', label: `Delivered (${orders.filter((o) => o.status === 'Delivered').length})` },
+                    { id: 'Pending', label: `Pending (${orders.filter((o) => isOrderMatchingFilter(o, 'Pending')).length})` },
+                    { id: 'Preparing', label: `Preparing (${orders.filter((o) => isOrderMatchingFilter(o, 'Preparing')).length})` },
+                    { id: 'Out for delivery', label: `Out for Delivery (${orders.filter((o) => isOrderMatchingFilter(o, 'Out for delivery')).length})` },
+                    { id: 'Delivered', label: `Delivered (${orders.filter((o) => isOrderMatchingFilter(o, 'Delivered')).length})` },
                   ].map((flt) => (
                     <button
                       key={flt.id}
@@ -897,7 +916,7 @@ export const AdminPage: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-amber-100 font-medium">
                         {orders
-                          .filter((ord) => orderFilterStatus === 'all' || ord.status === orderFilterStatus)
+                          .filter((ord) => isOrderMatchingFilter(ord, orderFilterStatus))
                           .map((order) => (
                             <tr
                               key={order.id}
@@ -988,7 +1007,7 @@ export const AdminPage: React.FC = () => {
                 /* CARDS VIEW */
                 <div className="space-y-6">
                   {orders
-                    .filter((ord) => orderFilterStatus === 'all' || ord.status === orderFilterStatus)
+                    .filter((ord) => isOrderMatchingFilter(ord, orderFilterStatus))
                     .map((order) => {
                       const primaryStatuses: OrderStatus[] = [
                         'Pending',

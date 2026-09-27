@@ -1,0 +1,21 @@
+{
+  "name": "SK Pizza Point",
+  "short_name": "SK Pizza",
+  "description": "Handcrafted Fresh Pizzas, Burgers & Sandwiches",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFDF9",
+  "theme_color": "#F59E0B",
+  "icons": [
+    {
+      "src": "https://i.imgur.com/KRI3jtw.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "https://i.imgur.com/KRI3jtw.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'android-admin/**'
   workflow_dispatch:
 
 jobs:

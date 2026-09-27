@@ -3,14 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags (Google Search & Website Info) -->
     <title>SK Pizza Point — Freshly Made. Seriously Delicious.</title>
-    <meta name="description" content="Premium restaurant web application for SK Pizza Point featuring Firebase Authentication, secure UID-locked Admin Studio, real-time cloud database synchronization, cinematic video hero, direct WhatsApp ordering, and customer account portal." />
-    <meta property="og:title" content="SK Pizza Point — Freshly Made. Seriously Delicious." />
-    <meta property="og:description" content="Premium restaurant web application for SK Pizza Point featuring Firebase Authentication, secure UID-locked Admin Studio, real-time cloud database synchronization, cinematic video hero, direct WhatsApp ordering, and customer account portal." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://i.imgur.com/KRI3jtw.jpeg" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="title" content="SK Pizza Point — Freshly Made. Seriously Delicious." />
+    <meta name="description" content="Order freshly handcrafted pizzas, crispy burgers, and grilled sandwiches from SK Pizza Point. Pure veg preparation, premium dairy cheese, and real-time live order tracking." />
+    <meta name="keywords" content="SK Pizza Point, pizza delivery, online pizza order, veg pizza, paneer pizza, burger, grilled sandwich, pizza point near me" />
+    <meta name="author" content="SK Pizza Point" />
+
+    <!-- Canonical URL (Google indexing) -->
+    <link rel="canonical" href="https://sk-pizza-point.web.app/" />
+
+    <!-- Sitemap Link (Googlebot detection) -->
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+
+    <!-- Favicon & Website Icon -->
     <link rel="icon" type="image/jpeg" href="https://i.imgur.com/KRI3jtw.jpeg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://i.imgur.com/KRI3jtw.jpeg" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="restaurant.restaurant" />
+    <meta property="og:url" content="https://sk-pizza-point.web.app/" />
+    <meta property="og:title" content="SK Pizza Point — Freshly Made. Seriously Delicious." />
+    <meta property="og:description" content="Order freshly handcrafted pizzas, crispy burgers, and grilled sandwiches from SK Pizza Point. Pure veg preparation, premium dairy cheese, and real-time live order tracking." />
+    <meta property="og:image" content="https://i.imgur.com/KRI3jtw.jpeg" />
+    <meta property="og:site_name" content="SK Pizza Point" />
+
+    <!-- Twitter Card -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://sk-pizza-point.web.app/" />
+    <meta property="twitter:title" content="SK Pizza Point — Freshly Made. Seriously Delicious." />
+    <meta property="twitter:description" content="Order freshly handcrafted pizzas, crispy burgers, and grilled sandwiches from SK Pizza Point. Pure veg preparation, premium dairy cheese, and real-time live order tracking." />
+    <meta property="twitter:image" content="https://i.imgur.com/KRI3jtw.jpeg" />
+
+    <!-- Schema.org Restaurant Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      "name": "SK Pizza Point",
+      "image": "https://i.imgur.com/KRI3jtw.jpeg",
+      "url": "https://sk-pizza-point.web.app/",
+      "telephone": "+919876543210",
+      "servesCuisine": ["Pizza", "Fast Food", "Italian-American"],
+      "priceRange": "₹₹",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "India",
+        "addressCountry": "IN"
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+          "opens": "11:00",
+          "closes": "23:00"
+        }
+      ],
+      "menu": "https://sk-pizza-point.web.app/#/menu"
+    }
+    </script>
+
+    <!-- Web Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -21,4 +76,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

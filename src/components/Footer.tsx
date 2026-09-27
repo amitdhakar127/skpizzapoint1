@@ -226,13 +226,6 @@ export const Footer: React.FC = () => {
             <button onClick={() => navigate('/contact')} className="hover:text-amber-400 transition-colors">
               Privacy Policy
             </button>
-            <button
-              onClick={() => navigate('/admin')}
-              className="flex items-center gap-1 text-amber-400 hover:underline"
-            >
-              <Lock className="w-3 h-3" />
-              <span>Admin Studio</span>
-            </button>
           </div>
         </div>
       </div>

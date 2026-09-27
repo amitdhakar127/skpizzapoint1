@@ -16,17 +16,16 @@ import { GalleryPage } from './pages/GalleryPage';
 import { VideosPage } from './pages/VideosPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { ContactPage } from './pages/ContactPage';
-import { AdminPage } from './pages/AdminPage';
-import { AdminLoginPage } from './pages/AdminLoginPage';
 import { CustomerAuthPage } from './pages/CustomerAuthPage';
 import { AccountPage } from './pages/AccountPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
+import { AdminPage } from './pages/AdminPage';
+import { AdminLoginPage } from './pages/AdminLoginPage';
 
 const AppContent: React.FC = () => {
   const { currentPath } = useApp();
 
-  // Determine if on admin route
   const isAdminRoute = currentPath === '/admin';
   const isAdminLoginRoute = currentPath === '/admin/login';
 
@@ -89,10 +88,10 @@ const AppContent: React.FC = () => {
     return <HomePage />;
   };
 
-  if (isAdminRoute) {
+  if (isAdminRoute || isAdminLoginRoute) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] text-[#1E1915]">
-        <AdminPage />
+        {renderCurrentPage()}
         <ToastContainer />
       </div>
     );

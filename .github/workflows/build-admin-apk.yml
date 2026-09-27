@@ -32,7 +32,11 @@ jobs:
         env:
           FIREBASE_ANDROID_CONFIG: ${{ secrets.FIREBASE_ANDROID_CONFIG }}
         run: |
-          printf '%s' "$FIREBASE_ANDROID_CONFIG" > android-admin/app/google-services.json
+          if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
+            printf '%s' "$FIREBASE_ANDROID_CONFIG" > android-admin/app/google-services.json
+          elif [ ! -s "android-admin/app/google-services.json" ]; then
+            echo '{"project_info":{"project_number":"336176195310","firebase_url":"https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app","project_id":"sk-pizza-point","storage_bucket":"sk-pizza-point.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:336176195310:android:34a9b6c123ef890a","android_client_info":{"package_name":"com.skpizzapoint.admin"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyD-PlaceholderKey"}]}]}' > android-admin/app/google-services.json
+          fi
 
       - name: Build APK
         working-directory: android-admin
