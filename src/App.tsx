@@ -19,7 +19,9 @@ import { ContactPage } from './pages/ContactPage';
 import { CustomerAuthPage } from './pages/CustomerAuthPage';
 import { AccountPage } from './pages/AccountPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
+import { MyOrdersPage } from './pages/MyOrdersPage';
 import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
+import { GlobalSirenAlertBanner } from './components/GlobalSirenAlertBanner';
 import { AdminPage } from './pages/AdminPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 
@@ -45,6 +47,10 @@ const AppContent: React.FC = () => {
 
     if (currentPath === '/account') {
       return <AccountPage />;
+    }
+
+    if (currentPath === '/my-orders' || currentPath === '/orders') {
+      return <MyOrdersPage />;
     }
 
     if (
@@ -91,6 +97,7 @@ const AppContent: React.FC = () => {
   if (isAdminRoute || isAdminLoginRoute) {
     return (
       <div className="min-h-screen bg-[#FDFBF7] text-[#1E1915]">
+        <GlobalSirenAlertBanner />
         {renderCurrentPage()}
         <ToastContainer />
       </div>
@@ -99,6 +106,9 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFFDF9] text-[#1E1915] font-sans antialiased selection:bg-amber-400 selection:text-slate-950">
+      {/* Global Repeating Siren Alert Banner across all screens */}
+      <GlobalSirenAlertBanner />
+
       {/* Top navigation header */}
       <Header />
 

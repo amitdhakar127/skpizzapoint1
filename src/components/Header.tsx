@@ -13,6 +13,7 @@ export const Header: React.FC = () => {
     userProfile,
     isAdmin,
     activeBroadcast,
+    myOrders,
   } = useApp();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -29,6 +30,7 @@ export const Header: React.FC = () => {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Menu', path: '/menu' },
+    { label: 'माय आर्डर लिस्ट', path: '/my-orders' },
     { label: 'Live Track', path: '/track' },
     { label: 'Gallery', path: '/gallery' },
     { label: 'Videos', path: '/videos' },
@@ -108,7 +110,27 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Desktop Right Action Area */}
-          <div className="hidden lg:flex items-center gap-2.5">
+          <div className="hidden lg:flex items-center gap-2">
+            {/* My Orders Button */}
+            <button
+              id="btn-header-my-orders-desktop"
+              onClick={() => handleNavClick('/my-orders')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                currentPath === '/my-orders'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-white border border-amber-200 text-[#1E1915] hover:bg-amber-50'
+              }`}
+              title="माय आर्डर लिस्ट (My Orders List)"
+            >
+              <ShoppingBag className="w-4 h-4 text-amber-700" />
+              <span>माय आर्डर लिस्ट</span>
+              {myOrders.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
+                  {myOrders.length}
+                </span>
+              )}
+            </button>
+
             {/* Always Visible Home Button */}
             <button
               id="btn-header-home-desktop"
@@ -191,12 +213,12 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Mobile Right Controls */}
-          <div className="flex lg:hidden items-center gap-2">
+          <div className="flex lg:hidden items-center gap-1.5">
             {/* Always Visible Mobile Titlebar Home Button */}
             <button
               id="btn-mobile-topbar-home"
               onClick={() => handleNavClick('/')}
-              className={`p-2.5 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+              className={`p-2 rounded-xl border transition-all cursor-pointer active:scale-95 ${
                 currentPath === '/'
                   ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
                   : 'bg-white border-amber-200 text-[#1E1915] shadow-sm hover:bg-amber-50'
@@ -204,16 +226,36 @@ export const Header: React.FC = () => {
               aria-label="Home"
               title="Go to Home"
             >
-              <Home className="w-5 h-5 text-amber-700" />
+              <Home className="w-4 h-4 text-amber-700" />
+            </button>
+
+            {/* Mobile My Orders Button */}
+            <button
+              id="btn-mobile-topbar-my-orders"
+              onClick={() => handleNavClick('/my-orders')}
+              className={`relative p-2 rounded-xl border transition-all cursor-pointer active:scale-95 ${
+                currentPath === '/my-orders'
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                  : 'bg-white border-amber-200 text-[#1E1915] shadow-sm hover:bg-amber-50'
+              }`}
+              aria-label="My Orders"
+              title="माय आर्डर लिस्ट"
+            >
+              <ShoppingBag className="w-4 h-4 text-amber-700" />
+              {myOrders.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-black text-[9px] flex items-center justify-center shadow">
+                  {myOrders.length}
+                </span>
+              )}
             </button>
 
             {/* Account Icon */}
             <button
               onClick={() => handleNavClick(currentUser ? '/account' : '/login')}
-              className="p-2.5 rounded-xl bg-white border border-amber-200 text-[#1E1915] shadow-sm cursor-pointer"
+              className="p-2 rounded-xl bg-white border border-amber-200 text-[#1E1915] shadow-sm cursor-pointer"
               aria-label="Account"
             >
-              <UserIcon className="w-5 h-5 text-amber-700" />
+              <UserIcon className="w-4 h-4 text-amber-700" />
             </button>
 
             {/* Active Announcement Bell for Mobile */}

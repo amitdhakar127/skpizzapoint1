@@ -11,28 +11,44 @@ type AlarmListener = (isRinging: boolean, order: ActiveAlarmOrder | null) => voi
 
 class SoundAlertManager {
   private audioCtx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
   private isMuted: boolean = false;
   private alarmIntervalId: any = null;
+  private activeTimeouts: Set<any> = new Set();
+  private activeOscillators: Set<OscillatorNode> = new Set();
   private isAlarmActive: boolean = false;
   private currentAlarmOrder: ActiveAlarmOrder | null = null;
   private listeners: Set<AlarmListener> = new Set();
 
   constructor() {
-    // Unlock AudioContext on first user interaction if possible
+    // Check saved mute preference
     if (typeof window !== 'undefined') {
+      try {
+        const savedMute = localStorage.getItem('sk_pizza_sound_muted');
+        if (savedMute === 'true') {
+          this.isMuted = true;
+        }
+      } catch {}
+
+      // Unlock AudioContext on first user interaction
       const unlockAudio = () => {
         this.getAudioContext();
         window.removeEventListener('click', unlockAudio);
         window.removeEventListener('touchstart', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
       };
       window.addEventListener('click', unlockAudio, { passive: true });
       window.addEventListener('touchstart', unlockAudio, { passive: true });
+      window.addEventListener('keydown', unlockAudio, { passive: true });
     }
   }
 
   public subscribeAlarm(listener: AlarmListener): () => void {
     this.listeners.add(listener);
-    listener(this.isAlarmActive, this.currentAlarmOrder);
+    // Call immediately with current state
+    try {
+      listener(this.isAlarmActive, this.currentAlarmOrder);
+    } catch {}
     return () => {
       this.listeners.delete(listener);
     };
@@ -56,6 +72,9 @@ class SoundAlertManager {
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtxClass) {
         this.audioCtx = new AudioCtxClass();
+        this.masterGain = this.audioCtx.createGain();
+        this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 1, this.audioCtx.currentTime);
+        this.masterGain.connect(this.audioCtx.destination);
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
@@ -64,15 +83,30 @@ class SoundAlertManager {
     return this.audioCtx;
   }
 
+  private addTrackedTimeout(fn: () => void, delayMs: number): any {
+    const id = setTimeout(() => {
+      this.activeTimeouts.delete(id);
+      if (this.isAlarmActive && !this.isMuted) {
+        fn();
+      }
+    }, delayMs);
+    this.activeTimeouts.add(id);
+    return id;
+  }
+
+  private clearAllTrackedTimeouts(): void {
+    this.activeTimeouts.forEach((id) => clearTimeout(id));
+    this.activeTimeouts.clear();
+  }
+
   // Play a loud high-pitch restaurant buzzer/bell
   public playOrderChime(): void {
     if (this.isMuted) return;
     try {
       const ctx = this.getAudioContext();
-      if (!ctx) return;
+      if (!ctx || !this.masterGain) return;
 
       const now = ctx.currentTime;
-      // High-energy attention chime notes
       const notes = [
         { freq: 659.25, start: 0, dur: 0.28, gain: 0.8 },    // E5
         { freq: 880.0, start: 0.15, dur: 0.35, gain: 0.95 },  // A5
@@ -92,7 +126,10 @@ class SoundAlertManager {
         gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.masterGain!);
+
+        this.activeOscillators.add(osc);
+        osc.onended = () => this.activeOscillators.delete(osc);
 
         osc.start(now + start);
         osc.stop(now + start + dur);
@@ -104,10 +141,10 @@ class SoundAlertManager {
 
   // Loud repeating siren burst for active alarm loop
   private playSirenBurst(): void {
-    if (this.isMuted) return;
+    if (this.isMuted || !this.isAlarmActive) return;
     try {
       const ctx = this.getAudioContext();
-      if (!ctx) return;
+      if (!ctx || !this.masterGain) return;
 
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
@@ -115,19 +152,22 @@ class SoundAlertManager {
 
       osc.type = 'sawtooth';
       // Siren sweep up and down
-      osc.frequency.setValueAtTime(800, now);
-      osc.frequency.exponentialRampToValueAtTime(1400, now + 0.25);
-      osc.frequency.exponentialRampToValueAtTime(900, now + 0.5);
+      osc.frequency.setValueAtTime(750, now);
+      osc.frequency.exponentialRampToValueAtTime(1450, now + 0.25);
+      osc.frequency.exponentialRampToValueAtTime(850, now + 0.5);
 
       gain.gain.setValueAtTime(0, now);
       gain.gain.linearRampToValueAtTime(0.85, now + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.masterGain!);
+
+      this.activeOscillators.add(osc);
+      osc.onended = () => this.activeOscillators.delete(osc);
 
       osc.start(now);
-      osc.stop(now + 0.6);
+      osc.stop(now + 0.58);
     } catch (e) {
       console.warn('Siren burst failed:', e);
     }
@@ -138,7 +178,7 @@ class SoundAlertManager {
     if (this.isMuted) return;
     try {
       const ctx = this.getAudioContext();
-      if (!ctx) return;
+      if (!ctx || !this.masterGain) return;
 
       const now = ctx.currentTime;
       const notes = [
@@ -158,7 +198,10 @@ class SoundAlertManager {
         gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.masterGain!);
+
+        this.activeOscillators.add(osc);
+        osc.onended = () => this.activeOscillators.delete(osc);
 
         osc.start(now + start);
         osc.stop(now + start + dur);
@@ -179,7 +222,7 @@ class SoundAlertManager {
     }
   }
 
-  // Stop device vibration
+  // Stop device vibration immediately
   private stopVibration(): void {
     if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
       try {
@@ -192,7 +235,7 @@ class SoundAlertManager {
 
   // Speak voice speech announcement in Hindi / Indian English
   public speakOrderAlert(orderId: string, customerName: string, amount: number): void {
-    if (this.isMuted) return;
+    if (this.isMuted || !this.isAlarmActive) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
     try {
@@ -225,16 +268,27 @@ class SoundAlertManager {
 
   // Continuous Repeating Alarm: KEEPS RINGING and buzzing until stopped!
   public startContinuousOrderAlarm(order: ActiveAlarmOrder): void {
-    this.stopContinuousAlarm(); // Stop any previous alarm
+    // First, stop any prior alarm cleanly
+    this.stopContinuousAlarm();
+
+    if (this.isMuted) return;
 
     this.isAlarmActive = true;
     this.currentAlarmOrder = order;
+
+    // Ensure audio context and master gain are open
+    const ctx = this.getAudioContext();
+    if (ctx && this.masterGain) {
+      this.masterGain.gain.setValueAtTime(1, ctx.currentTime);
+    }
+
     this.notifyListeners();
 
     // Trigger initial chime, vibration & voice
     this.playOrderChime();
     this.triggerVibration();
-    setTimeout(() => {
+
+    this.addTrackedTimeout(() => {
       if (this.isAlarmActive) {
         this.speakOrderAlert(order.id, order.customerName, order.amount);
       }
@@ -255,7 +309,7 @@ class SoundAlertManager {
       // Alternate siren and voice reminder
       if (tick % 2 === 1) {
         this.playSirenBurst();
-        setTimeout(() => {
+        this.addTrackedTimeout(() => {
           if (this.isAlarmActive) this.playOrderChime();
         }, 600);
       } else {
@@ -264,24 +318,59 @@ class SoundAlertManager {
     }, 3600);
   }
 
-  // Stop continuous alarm immediately
+  // 100% Guaranteed STOP: stops all sounds, voice, intervals, timeouts, vibration instantly
   public stopContinuousAlarm(): void {
+    // 1. Clear interval
     if (this.alarmIntervalId) {
       clearInterval(this.alarmIntervalId);
       this.alarmIntervalId = null;
     }
+
+    // 2. Clear all scheduled timeouts
+    this.clearAllTrackedTimeouts();
+
+    // 3. Mark inactive
     this.isAlarmActive = false;
     this.currentAlarmOrder = null;
-    this.stopVibration();
 
+    // 4. Silence master gain immediately and stop all oscillators
+    try {
+      if (this.audioCtx && this.masterGain) {
+        this.masterGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+      }
+      this.activeOscillators.forEach((osc) => {
+        try {
+          osc.stop();
+          osc.disconnect();
+        } catch {}
+      });
+      this.activeOscillators.clear();
+    } catch {}
+
+    // 5. Cancel speech synthesis (call twice with delay to purge mobile queue)
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-      } catch {
-        // Ignore
-      }
+        setTimeout(() => {
+          try { window.speechSynthesis.cancel(); } catch {}
+        }, 50);
+        setTimeout(() => {
+          try { window.speechSynthesis.cancel(); } catch {}
+        }, 150);
+      } catch {}
     }
 
+    // 6. Stop vibration
+    this.stopVibration();
+
+    // 7. Re-enable master gain for future sounds after small silence window
+    setTimeout(() => {
+      if (this.audioCtx && this.masterGain && !this.isMuted) {
+        this.masterGain.gain.setValueAtTime(1, this.audioCtx.currentTime);
+      }
+    }, 200);
+
+    // 8. Notify all listeners
     this.notifyListeners();
   }
 
@@ -292,6 +381,10 @@ class SoundAlertManager {
   // One-click Test Siren for Owner to verify sound & audio permissions
   public testAlarm(): void {
     this.isMuted = false;
+    try {
+      localStorage.removeItem('sk_pizza_sound_muted');
+    } catch {}
+
     const ctx = this.getAudioContext();
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
@@ -331,8 +424,19 @@ class SoundAlertManager {
 
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
+    try {
+      localStorage.setItem('sk_pizza_sound_muted', String(this.isMuted));
+    } catch {}
+
     if (this.isMuted) {
       this.stopContinuousAlarm();
+      if (this.audioCtx && this.masterGain) {
+        this.masterGain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+      }
+    } else {
+      if (this.audioCtx && this.masterGain) {
+        this.masterGain.gain.setValueAtTime(1, this.audioCtx.currentTime);
+      }
     }
     return this.isMuted;
   }

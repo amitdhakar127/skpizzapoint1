@@ -45,6 +45,7 @@ import { LiveOrderTracker } from '../components/LiveOrderTracker';
 import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { soundAlerts } from '../lib/soundAlerts';
 
 const AdminPageInternal: React.FC = () => {
   const {
@@ -106,9 +107,17 @@ const AdminPageInternal: React.FC = () => {
   }
 
   // If not logged in as authorized admin, show dedicated Admin Login page
-  if (!currentUser || !isAdmin) {
+  if (!isAdmin) {
     return <AdminLoginPage />;
   }
+
+  // Subscribe to siren alarm ringing state
+  const [isAlarmRinging, setIsAlarmRinging] = useState<boolean>(() => soundAlerts.isAlarmRinging());
+  useEffect(() => {
+    return soundAlerts.subscribeAlarm((ringing) => {
+      setIsAlarmRinging(ringing);
+    });
+  }, []);
 
   type AdminTab =
     | 'dashboard'
@@ -431,7 +440,7 @@ const AdminPageInternal: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFBF7] flex flex-col">
+    <div className="h-screen bg-[#FDFBF7] flex flex-col overflow-hidden">
       {/* High Priority Repeating Siren Order Alarm for Mobile & Desktop */}
       <AdminRingingAlarmOverlay
         onOpenOrder={(orderId) => {
@@ -442,49 +451,75 @@ const AdminPageInternal: React.FC = () => {
       />
 
       {/* Admin Top Navigation */}
-      <header className="bg-[#181411] text-white border-b border-neutral-800 sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="bg-[#181411] text-white border-b border-amber-500/30 sticky top-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shadow-md shrink-0">
+        {/* Brand Logo & Name */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">
-            SK
+          <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-2xl overflow-hidden border-2 border-amber-400 bg-amber-50 shadow-md shrink-0 flex items-center justify-center">
+            <img
+              src={settings.logoUrl || 'https://i.imgur.com/KRI3jtw.jpeg'}
+              alt={settings.restaurantName}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+              className="w-full h-full object-cover"
+            />
           </div>
           <div>
-            <h1 className="font-extrabold text-base tracking-tight flex items-center gap-2">
-              <span>SK Pizza Point — Admin Studio</span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-black text-sm sm:text-base tracking-tight text-white leading-tight">
+                एसके पिज़्ज़ा पॉइंट <span className="text-amber-400 text-xs font-bold font-sans">({settings.restaurantName})</span>
+              </h1>
+              <span className="hidden md:inline-flex px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider items-center gap-1 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Firebase Realtime DB
+                किचन पार्टनर ऐप (Live)
               </span>
-            </h1>
-            <p className="text-[10px] text-neutral-400 font-mono">
-              Admin: {currentUser?.email}
+            </div>
+            <p className="text-[10px] text-neutral-400 font-mono flex items-center gap-1">
+              <span>Admin:</span>
+              <span className="text-amber-300 font-bold">{currentUser?.email || 'Authorized Passcode Admin'}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* High Priority Siren Test Button */}
-          <button
-            type="button"
-            onClick={() => testOrderAlertSound()}
-            className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 ring-2 ring-amber-400/50"
-            title="Test Loud Repeating Order Siren (सायरन टेस्ट करें)"
-          >
-            <BellRing className="w-3.5 h-3.5 text-yellow-300 animate-wiggle" />
-            <span>🚨 सायरन टेस्ट (Test Siren)</span>
-          </button>
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          {/* Siren Test / Emergency Stop Button */}
+          {isAlarmRinging ? (
+            <button
+              type="button"
+              onClick={() => {
+                soundAlerts.stopContinuousAlarm();
+                dismissOrderAlert();
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-lg animate-pulse ring-4 ring-yellow-400"
+              title="Stop repeating order siren immediately"
+            >
+              <VolumeX className="w-3.5 h-3.5" />
+              <span>🛑 सायरन बंद करें (STOP ALARM)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => testOrderAlertSound()}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              title="Test Loud Repeating Order Siren (सायरन टेस्ट करें)"
+            >
+              <BellRing className="w-3.5 h-3.5 text-slate-950" />
+              <span>🚨 सायरन टेस्ट</span>
+            </button>
+          )}
 
           <button
             type="button"
             onClick={() => toggleSoundMute()}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
               isSoundMuted
                 ? 'bg-neutral-800 text-neutral-400 hover:text-white'
                 : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
             }`}
-            title={isSoundMuted ? 'Unmute Loud Voice Alert' : 'Voice Alert is Active'}
+            title={isSoundMuted ? 'Unmute Voice Alert' : 'Voice Alert is Active'}
           >
-            {isSoundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse" />}
-            <span className="hidden sm:inline">{isSoundMuted ? 'Voice Muted' : 'Voice Alarm On'}</span>
+            {isSoundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 animate-pulse text-emerald-400" />}
+            <span className="hidden sm:inline">{isSoundMuted ? 'Muted' : 'Sound On'}</span>
           </button>
 
           <button
@@ -493,12 +528,12 @@ const AdminPageInternal: React.FC = () => {
             title="Seed initial official menu items to Firebase Realtime Database"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Sync to Cloud</span>
+            <span>Sync Cloud</span>
           </button>
 
           <button
             onClick={() => navigate('/')}
-            className="px-3.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Live Website</span>
@@ -506,7 +541,7 @@ const AdminPageInternal: React.FC = () => {
 
           <button
             onClick={() => logout()}
-            className="px-3.5 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logout</span>
@@ -546,9 +581,9 @@ const AdminPageInternal: React.FC = () => {
       )}
 
       {/* Admin Layout */}
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
         {/* Desktop Sidebar (Hidden on mobile / Android APK to provide native app experience) */}
-        <aside className="hidden md:block w-64 bg-white border-r border-amber-200/80 p-4 space-y-1.5 shrink-0">
+        <aside className="hidden md:block w-64 bg-white border-r border-amber-200/80 p-4 space-y-1.5 shrink-0 overflow-y-auto">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'products', label: `Products (${products.length})`, icon: Utensils },
@@ -593,8 +628,8 @@ const AdminPageInternal: React.FC = () => {
           </div>
         </aside>
 
-        {/* Main Content Area (pb-28 on mobile ensures bottom bar never obscures content) */}
-        <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6 pb-28 md:pb-8">
+        {/* Main Content Area (pb-32 on mobile ensures bottom bar never obscures content) */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6 pb-32 md:pb-8 overscroll-contain">
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-fade-in">

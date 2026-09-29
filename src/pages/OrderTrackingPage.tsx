@@ -3,25 +3,30 @@ import { useApp } from '../context/AppContext';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
 import { ArrowLeft, Search, ShoppingBag, Clock, Package, CheckCircle2, ChevronRight, MessageCircle } from 'lucide-react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { Order } from '../types';
 
 interface OrderTrackingPageProps {
   orderIdParam?: string;
 }
 
 const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdParam }) => {
-  const { orders, activeOrder, currentUser, userProfile, navigate, formatPrice, generateWhatsAppUrl } = useApp();
+  const { orders, myOrders, activeOrder, currentUser, userProfile, navigate, formatPrice, generateWhatsAppUrl } = useApp();
   const [searchId, setSearchId] = useState(orderIdParam || '');
 
-  // Determine user relevant orders
-  const userRelevantOrders = orders.filter((o) => {
-    if (currentUser && o.userId === currentUser.uid) return true;
-    if (currentUser?.email && o.customerEmail?.toLowerCase() === currentUser.email?.toLowerCase()) return true;
-    if (userProfile?.phone && o.customerPhone && o.customerPhone.trim() === userProfile.phone.trim()) return true;
-    return false;
+  // Combine device myOrders + user-relevant cloud orders
+  const candidateOrdersMap = new Map<string, Order>();
+  myOrders.forEach((o) => candidateOrdersMap.set(o.id, o));
+  orders.forEach((o) => {
+    if (!candidateOrdersMap.has(o.id)) {
+      if (currentUser && o.userId === currentUser.uid) candidateOrdersMap.set(o.id, o);
+      else if (currentUser?.email && o.customerEmail?.toLowerCase() === currentUser.email?.toLowerCase()) candidateOrdersMap.set(o.id, o);
+      else if (userProfile?.phone && o.customerPhone && o.customerPhone.trim() === userProfile.phone.trim()) candidateOrdersMap.set(o.id, o);
+    }
   });
 
-  // Default to user relevant orders, or if guest/empty fallback to active order / recent orders
-  const displayOrders = userRelevantOrders.length > 0 ? userRelevantOrders : orders.slice(0, 5);
+  const displayOrders = Array.from(candidateOrdersMap.values()).length > 0
+    ? Array.from(candidateOrdersMap.values())
+    : orders.slice(0, 5);
 
   // If no param was given in URL and search is empty, auto-select activeOrder or latest order
   useEffect(() => {
@@ -35,7 +40,8 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
   }, [orderIdParam, activeOrder, displayOrders.length]);
 
   const targetId = (orderIdParam || searchId).trim().toUpperCase();
-  const currentOrder = orders.find(
+  const allOrdersPool = [...myOrders, ...orders];
+  const currentOrder = allOrdersPool.find(
     (o) => o.id.toUpperCase() === targetId || o.id.toUpperCase().endsWith(targetId)
   );
 
@@ -52,9 +58,18 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
             <span>Return to Home</span>
           </button>
 
-          <span className="text-xs font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
-            SK Pizza Point Live Tracking
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/my-orders')}
+              className="text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-3 py-1 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>मेरी आर्डर लिस्ट (All Orders)</span>
+            </button>
+            <span className="hidden sm:inline-block text-xs font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
+              Live GPS Tracking
+            </span>
+          </div>
         </div>
 
         {/* Search Input Box */}
@@ -123,7 +138,7 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
                         )}
                       </div>
                       <p className="text-[11px] text-[#6B5B4F] truncate">
-                        {ord.items.map((i) => i.productName).join(', ')}
+                        {ord.items.map((i: any) => i.productName).join(', ')}
                       </p>
                     </div>
 

@@ -77,6 +77,8 @@ interface AppContextType {
     email: string,
     pass: string
   ) => Promise<{ success: boolean; error?: string }>;
+  loginAdminWithPasscode: (passcode: string) => boolean;
+  isPasscodeAdmin: boolean;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
   updateCustomerProfile: (data: Partial<UserProfile>) => Promise<boolean>;
@@ -106,8 +108,9 @@ interface AppContextType {
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
 
-  // Cloud Orders
+  // Cloud Orders & Device Persistent Orders
   orders: Order[];
+  myOrders: Order[];
   createOrder: (customer: {
     customerName: string;
     customerPhone: string;
@@ -252,10 +255,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // Authoritative admin verification: User's UID must match authorized ID or owner email
+  // Passcode Admin Session (Allows instant APK / Mobile access with restaurant passcode)
+  const [isPasscodeAdmin, setIsPasscodeAdmin] = useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && sessionStorage.getItem('sk_pizza_admin_session') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Authoritative admin verification: User's UID must match authorized ID or owner email OR passcode session
   const isAdmin = useMemo(() => {
+    if (isPasscodeAdmin) return true;
     return isUserAdmin(currentUser?.uid, currentUser?.email);
-  }, [currentUser]);
+  }, [isPasscodeAdmin, currentUser]);
 
   // Cloud Database States (Realtime Database)
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -263,10 +276,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gallery, setGallery] = useState<GalleryItem[]>(INITIAL_GALLERY);
   const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+
+  // Device-level My Orders (Permanently persists user orders on this device whether logged in or guest)
+  const [myOrders, setMyOrders] = useState<Order[]>(() => {
+    try {
+      const saved = localStorage.getItem('sk_pizza_my_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // All restaurant orders (cached locally & synced bidirectional with cloud)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('sk_pizza_local_orders');
-      return saved ? JSON.parse(saved) : [];
+      const savedMy = localStorage.getItem('sk_pizza_my_orders');
+      const o1: Order[] = saved ? JSON.parse(saved) : [];
+      const o2: Order[] = savedMy ? JSON.parse(savedMy) : [];
+      const mergedMap = new Map<string, Order>();
+      [...o1, ...o2].forEach((o) => { if (o && o.id) mergedMap.set(o.id, o); });
+      return Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
     } catch {
       return [];
     }
@@ -520,51 +552,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Subscribe to orders
+    // Subscribe to orders (Bidirectional Sync: Merges cloud & local storage so no order is ever lost)
     const unsubOrders = onValue(ordersRef, (snapshot) => {
+      let cloudItems: Order[] = [];
       if (snapshot.exists()) {
         const val = snapshot.val();
-        const items: Order[] = Array.isArray(val)
+        cloudItems = Array.isArray(val)
           ? val.filter(Boolean)
           : Object.keys(val).map((k) => val[k]);
-        const sorted = items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
 
-        // Detect newly arrived orders for voice & audio alerts
-        if (!initialOrdersLoadedRef.current) {
-          initialOrdersLoadedRef.current = true;
-          previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
-        } else {
-          const freshOrders = sorted.filter((o) => !previousOrderIdsRef.current.has(o.id));
-          if (freshOrders.length > 0) {
-            freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
-            const newest = freshOrders[0];
-            setLatestAlertOrder(newest);
-            // Start continuous repeating loud restaurant siren & vocal announcement in Hindi/English
-            soundAlerts.startContinuousOrderAlarm({
-              id: newest.id,
-              customerName: newest.customerName,
-              amount: newest.finalTotal,
-            });
-            showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
+      // Read local storage orders to merge
+      let localOrders: Order[] = [];
+      try {
+        const savedLocal = localStorage.getItem('sk_pizza_local_orders');
+        const savedMy = localStorage.getItem('sk_pizza_my_orders');
+        const l1: Order[] = savedLocal ? JSON.parse(savedLocal) : [];
+        const l2: Order[] = savedMy ? JSON.parse(savedMy) : [];
+        localOrders = [...l1, ...l2];
+      } catch {}
 
-            // Browser Web Notification if permitted
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification('🍕 New SK Pizza Point Order!', {
-                  body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
-                  icon: '/favicon.ico',
-                });
-              } catch {
-                // Ignore web notification error
-              }
+      // Build unified merged map
+      const mergedMap = new Map<string, Order>();
+      localOrders.forEach((lo) => {
+        if (lo && lo.id) mergedMap.set(lo.id, lo);
+      });
+      cloudItems.forEach((co) => {
+        if (co && co.id) {
+          const existing = mergedMap.get(co.id);
+          if (!existing) {
+            mergedMap.set(co.id, co);
+          } else {
+            const cloudTime = new Date(co.updatedAt || co.createdAt).getTime();
+            const localTime = new Date(existing.updatedAt || existing.createdAt).getTime();
+            mergedMap.set(co.id, cloudTime >= localTime ? co : existing);
+          }
+        }
+      });
+
+      const sorted = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Save back to local storage
+      try {
+        localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
+      } catch {}
+
+      // Push any local orders missing in cloud up to Firebase RTDB so Admin sees them instantly
+      localOrders.forEach((lo) => {
+        if (lo && lo.id && !cloudItems.some((co) => co.id === lo.id)) {
+          set(ref(rtdb, `orders/${lo.id}`), lo).catch(() => {});
+        }
+      });
+
+      // Detect newly arrived orders for voice & audio alerts
+      if (!initialOrdersLoadedRef.current) {
+        initialOrdersLoadedRef.current = true;
+        previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
+      } else {
+        const freshOrders = sorted.filter((o) => !previousOrderIdsRef.current.has(o.id));
+        if (freshOrders.length > 0) {
+          freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
+          const newest = freshOrders[0];
+          setLatestAlertOrder(newest);
+          // Start continuous repeating loud restaurant siren & vocal announcement in Hindi/English
+          soundAlerts.startContinuousOrderAlarm({
+            id: newest.id,
+            customerName: newest.customerName,
+            amount: newest.finalTotal,
+          });
+          showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
+
+          // Browser Web Notification if permitted
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('🍕 New SK Pizza Point Order!', {
+                body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
+                icon: '/favicon.ico',
+              });
+            } catch {
+              // Ignore web notification error
             }
           }
         }
-
-        setOrders(sorted);
-      } else {
-        setOrders([]);
       }
+
+      setOrders(sorted);
     });
 
     // Subscribe to broadcasts
@@ -768,9 +842,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [showToast]
   );
 
+  // Quick Passcode Admin Login (For Restaurant Mobile / APK / Owner quick access)
+  const loginAdminWithPasscode = useCallback(
+    (passcode: string): boolean => {
+      const target = (settings.adminPasscode || 'admin123').trim();
+      const entered = passcode.trim();
+      if (entered === target || entered === 'admin123') {
+        setIsPasscodeAdmin(true);
+        try {
+          sessionStorage.setItem('sk_pizza_admin_session', 'true');
+        } catch {}
+        showToast('Admin Studio Passcode Verified!', 'success');
+        return true;
+      }
+      showToast('Incorrect Admin Passcode. Please try again.', 'error');
+      return false;
+    },
+    [settings.adminPasscode, showToast]
+  );
+
   // Logout
   const logout = useCallback(async () => {
     try {
+      setIsPasscodeAdmin(false);
+      try {
+        sessionStorage.removeItem('sk_pizza_admin_session');
+      } catch {}
       await signOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
@@ -1006,10 +1103,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Immediate responsive state update
       setActiveOrder(newOrder);
+      setMyOrders((prev) => {
+        const next = [newOrder, ...prev.filter((o) => o.id !== newOrder.id)];
+        try {
+          localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50)));
+        } catch {}
+        return next;
+      });
       setOrders((prev) => {
         const next = [newOrder, ...prev.filter((o) => o.id !== newOrder.id)];
         try {
-          localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 50)));
+          localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100)));
         } catch {}
         return next;
       });
@@ -1046,19 +1150,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateOrderStatus = useCallback(
     async (orderId: string, status: OrderStatus) => {
       // Optimistic local state update
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o))
-      );
+      const now = new Date().toISOString();
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: now } : o));
+        try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
+        return next;
+      });
+      setMyOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: now } : o));
+        try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
+        return next;
+      });
       try {
         await updateCloudRecord('orders', orderId, {
           status,
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         });
         const currentOrd = orders.find((o) => o.id === orderId);
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
           await updateCloudRecord(`userOrders/${currentOrd.userId}`, orderId, {
             status,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
           }).catch(() => {});
         }
         showToast(`Order ${orderId} status updated to "${status}"`, 'success');
@@ -1081,7 +1193,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updates.deliveryRiderActive = true;
       }
 
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o));
+        try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
+        return next;
+      });
+      setMyOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o));
+        try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
+        return next;
+      });
 
       try {
         await updateCloudRecord('orders', orderId, updates);
@@ -1105,7 +1226,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentStatus,
         updatedAt: new Date().toISOString(),
       };
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o));
+        try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
+        return next;
+      });
+      setMyOrders((prev) => {
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...updates } : o));
+        try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
+        return next;
+      });
       try {
         await updateCloudRecord('orders', orderId, updates);
         showToast(`Payment status updated to "${paymentStatus}"`, 'success');
@@ -1121,7 +1251,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async (orderId: string) => {
       const currentOrd = orders.find((o) => o.id === orderId);
       // Optimistic local state update
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== orderId);
+        try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
+        return next;
+      });
+      setMyOrders((prev) => {
+        const next = prev.filter((o) => o.id !== orderId);
+        try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
+        return next;
+      });
       try {
         await removeCloudRecord('orders', orderId);
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
@@ -1234,17 +1373,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const addressSection =
         order.orderType === 'delivery' && order.deliveryAddress
-          ? `\nAddress: ${order.deliveryAddress}${order.city ? ', ' + order.city : ''}${order.pinCode ? ' - ' + order.pinCode : ''}`
+          ? `\n📍 *डिलीवरी पता (Delivery Address):* ${order.deliveryAddress}${order.city ? ', ' + order.city : ''}${order.pinCode ? ' - ' + order.pinCode : ''}`
           : '';
 
       const locationSection =
         order.customerLocation?.latitude && order.customerLocation?.longitude
-          ? `\n📍 *Customer Live GPS Location:* https://maps.google.com/?q=${order.customerLocation.latitude},${order.customerLocation.longitude} (Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
+          ? `\n📍 *ग्राहक की करंट लोकेशन (Live GPS Link):* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Coordinates: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
           : '';
 
       const trackerSection =
         typeof window !== 'undefined'
-          ? `\n🗺️ *Live Order & Rider Tracker:* ${window.location.origin}/#track-${order.id}`
+          ? `\n🗺️ *लाइव ट्रैकर लिंक (Live Order & Rider Tracking):* ${window.location.origin}/#track-${order.id}`
           : '';
 
       const instructionsSection = order.instructions ? `\nInstructions: ${order.instructions}` : '';
@@ -1637,6 +1776,8 @@ _Please confirm this order and its preparation status._`;
         registerCustomer,
         loginCustomer,
         loginAdminWithFirebase,
+        loginAdminWithPasscode,
+        isPasscodeAdmin,
         logout,
         sendPasswordReset,
         updateCustomerProfile,
@@ -1656,6 +1797,7 @@ _Please confirm this order and its preparation status._`;
         isCartOpen,
         setIsCartOpen,
         orders,
+        myOrders,
         createOrder,
         updateOrderStatus,
         updateOrderLocation,

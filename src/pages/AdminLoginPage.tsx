@@ -1,18 +1,34 @@
 import React, { useState } from 'react';
-import { Lock, ArrowRight, ShieldCheck, Mail, Eye, EyeOff, AlertCircle, CheckCircle2, ShieldAlert, Loader2 } from 'lucide-react';
+import {
+  Lock,
+  ArrowRight,
+  ShieldCheck,
+  Mail,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  ShieldAlert,
+  Loader2,
+  KeyRound,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AdminLoginPage: React.FC = () => {
   const {
     loginAdminWithFirebase,
+    loginAdminWithPasscode,
     currentUser,
     isAdmin,
     authorizedAdminUid,
     logout,
     navigate,
     sendPasswordReset,
+    settings,
   } = useApp();
 
+  const [loginMode, setLoginMode] = useState<'passcode' | 'firebase'>('passcode');
+  const [passcode, setPasscode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,21 +38,18 @@ export const AdminLoginPage: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
 
   // If already logged in as authorized admin
-  if (currentUser && isAdmin) {
+  if (isAdmin) {
     return (
       <div className="min-h-[85vh] flex items-center justify-center p-4 bg-[#FFFDF9]">
-        <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-emerald-200 shadow-2xl space-y-6 text-center">
+        <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-emerald-200 shadow-2xl space-y-6 text-center animate-scale-up">
           <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-sm">
             <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <div className="space-y-1.5">
             <h1 className="text-2xl font-black text-[#1E1915]">Administrator Verified</h1>
             <p className="text-xs text-[#6B5B4F]">
-              Logged in as <strong className="text-[#1E1915]">{currentUser.email}</strong>
+              Logged in as <strong className="text-[#1E1915]">{currentUser?.email || 'Passcode Authorized Partner'}</strong>
             </p>
-            <div className="p-3 rounded-xl bg-neutral-50 text-[11px] font-mono text-neutral-600 break-all border border-neutral-200">
-              UID: {currentUser.uid}
-            </div>
           </div>
 
           <div className="space-y-3 pt-2">
@@ -44,7 +57,7 @@ export const AdminLoginPage: React.FC = () => {
               onClick={() => navigate('/admin')}
               className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Go to Admin Studio</span>
+              <span>Go to Admin Studio (एडमिन स्टूडियो खोलें)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
@@ -59,48 +72,21 @@ export const AdminLoginPage: React.FC = () => {
     );
   }
 
-  // If logged in as customer but not authorized admin
-  if (currentUser && !isAdmin) {
-    return (
-      <div className="min-h-[85vh] flex items-center justify-center p-4 bg-[#FFFDF9]">
-        <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-red-200 shadow-2xl space-y-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-800 flex items-center justify-center mx-auto shadow-sm">
-            <ShieldAlert className="w-8 h-8 text-red-600" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black text-[#1E1915]">Admin Access Required</h1>
-            <p className="text-xs text-[#6B5B4F] leading-relaxed">
-              You are currently signed in as <strong className="text-[#1E1915]">{currentUser.email}</strong>. This account does not possess administrator privileges for SK Pizza Point.
-            </p>
-            <div className="p-3 rounded-xl bg-red-50 text-[11px] font-mono text-red-800 text-left space-y-1 border border-red-200">
-              <p><strong>Your Current UID:</strong> {currentUser.uid}</p>
-              <p><strong>Authorized Admin UID:</strong> {authorizedAdminUid}</p>
-            </div>
-            <p className="text-[11px] text-[#8A7B70]">
-              To access Admin Studio, please sign in with the designated Firebase administrator account.
-            </p>
-          </div>
+  const handlePasscodeLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passcode.trim()) {
+      setErrorMessage('Please enter the Admin Passcode.');
+      return;
+    }
+    const success = loginAdminWithPasscode(passcode);
+    if (success) {
+      navigate('/admin');
+    } else {
+      setErrorMessage('Incorrect passcode. Please enter valid restaurant passcode.');
+    }
+  };
 
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={() => logout()}
-              className="w-full py-3.5 px-6 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Sign Out & Switch Account</span>
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              className="w-full py-2.5 px-4 rounded-xl border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-semibold transition-colors cursor-pointer"
-            >
-              Return to Website
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleFirebaseLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setErrorMessage('Please enter both email and password.');
@@ -135,20 +121,66 @@ export const AdminLoginPage: React.FC = () => {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4 bg-[#FFFDF9]">
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-amber-200 shadow-2xl space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center mx-auto shadow-sm">
-            <Lock className="w-7 h-7 text-amber-600" />
+      <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-300 shadow-2xl space-y-6">
+        {/* Header with Logo */}
+        <div className="text-center space-y-3">
+          <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-amber-400 bg-amber-50 shadow-md mx-auto flex items-center justify-center">
+            <img
+              src={settings.logoUrl || 'https://i.imgur.com/KRI3jtw.jpeg'}
+              alt={settings.restaurantName}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+              className="w-full h-full object-cover"
+            />
           </div>
-          <h1 className="text-2xl font-black text-[#1E1915]">Admin Studio Login</h1>
-          <p className="text-xs text-[#6B5B4F]">
-            Sign in with the verified Firebase administrator account to manage menu prices, orders, and restaurant settings.
-          </p>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#1E1915]">
+              एसके पिज़्ज़ा पॉइंट — एडमिन लॉगिन
+            </h1>
+            <p className="text-xs text-[#6B5B4F] mt-1">
+              SK Pizza Point Kitchen Partner & Store Manager Console
+            </p>
+          </div>
+        </div>
+
+        {/* Tab switcher: Fast Passcode PIN vs Firebase Account */}
+        <div className="flex rounded-2xl bg-amber-100/70 p-1 border border-amber-200">
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMode('passcode');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              loginMode === 'passcode'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-amber-900 hover:bg-amber-200/50'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>त्वरित पासकोड PIN</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMode('firebase');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              loginMode === 'firebase'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-amber-900 hover:bg-amber-200/50'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>Firebase ईमेल</span>
+          </button>
         </div>
 
         {errorMessage && (
-          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5 text-xs font-semibold">
+          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5 text-xs font-semibold animate-shake">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div className="leading-relaxed">{errorMessage}</div>
           </div>
@@ -161,89 +193,128 @@ export const AdminLoginPage: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleAdminLogin} className="space-y-4">
-          {/* Email */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
-              Administrator Email
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
-              <input
-                type="email"
-                required
-                placeholder="admin@skpizzapoint.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setErrorMessage(null);
-                }}
-                disabled={isLoading}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-            </div>
-          </div>
-
-          {/* Password */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+        {loginMode === 'passcode' ? (
+          /* FAST PASSCODE PIN LOGIN */
+          <form onSubmit={handlePasscodeLogin} className="space-y-4">
+            <div className="space-y-1.5">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
-                Password
+                Restaurant Admin PIN / Passcode
               </label>
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                disabled={isResetting || isLoading}
-                className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
-              >
-                {isResetting ? 'Sending...' : 'Forgot password?'}
-              </button>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Enter Passcode (e.g. admin123)"
+                  value={passcode}
+                  onChange={(e) => {
+                    setPasscode(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-500">
+                Default APK Passcode: <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-bold">admin123</code>
+              </p>
             </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setErrorMessage(null);
-                }}
-                disabled={isLoading}
-                className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            id="btn-admin-firebase-login"
-            disabled={isLoading}
-            className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Verifying Firebase Credentials...</span>
-              </>
-            ) : (
-              <>
-                <span>Enter Admin Studio</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>एडमिन स्टूडियो खोलें (Enter Admin Studio)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+        ) : (
+          /* FIREBASE ACCOUNT LOGIN */
+          <form onSubmit={handleFirebaseLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
+                Administrator Email
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@skpizzapoint.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isResetting || isLoading}
+                  className="text-[11px] font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
+                >
+                  {isResetting ? 'Sending...' : 'Forgot password?'}
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••••••"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  disabled={isLoading}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying Firebase Credentials...</span>
+                </>
+              ) : (
+                <>
+                  <span>Enter Admin Studio</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         {/* Security Notice */}
         <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-[#6B5B4F] space-y-1">
@@ -252,7 +323,7 @@ export const AdminLoginPage: React.FC = () => {
             <span>Authorized Administrator Identity</span>
           </p>
           <p>
-            Access is cryptographically restricted to Firebase UID <code className="font-mono bg-white px-1 py-0.5 rounded border border-amber-200 text-neutral-700">{authorizedAdminUid.slice(0, 12)}...</code>.
+            Restricted to SK Pizza Point authorized managers and UID <code className="font-mono bg-white px-1 py-0.5 rounded border border-amber-200 text-neutral-700">{authorizedAdminUid.slice(0, 10)}...</code>.
           </p>
         </div>
 
