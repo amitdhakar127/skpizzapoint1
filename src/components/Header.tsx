@@ -30,7 +30,7 @@ export const Header: React.FC = () => {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Menu', path: '/menu' },
-    { label: 'माय आर्डर लिस्ट', path: '/my-orders' },
+    { label: 'My Orders', path: '/my-orders' },
     { label: 'Live Track', path: '/track' },
     { label: 'Gallery', path: '/gallery' },
     { label: 'Videos', path: '/videos' },
@@ -120,10 +120,10 @@ export const Header: React.FC = () => {
                   ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
                   : 'bg-white border border-amber-200 text-[#1E1915] hover:bg-amber-50'
               }`}
-              title="माय आर्डर लिस्ट (My Orders List)"
+              title="My Orders List"
             >
               <ShoppingBag className="w-4 h-4 text-amber-700" />
-              <span>माय आर्डर लिस्ट</span>
+              <span>My Orders</span>
               {myOrders.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
                   {myOrders.length}
@@ -239,7 +239,7 @@ export const Header: React.FC = () => {
                   : 'bg-white border-amber-200 text-[#1E1915] shadow-sm hover:bg-amber-50'
               }`}
               aria-label="My Orders"
-              title="माय आर्डर लिस्ट"
+              title="My Orders"
             >
               <ShoppingBag className="w-4 h-4 text-amber-700" />
               {myOrders.length > 0 && (
@@ -346,19 +346,20 @@ export const Header: React.FC = () => {
               <div className="flex items-center justify-between gap-3 pt-2">
                 <a
                   href={`tel:${settings.whatsAppNumber}`}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-neutral-100 text-[#1E1915] text-xs font-semibold flex items-center justify-center gap-2"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white border border-amber-200 text-[#1E1915] font-bold text-sm"
                 >
-                  <Phone className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Call Us ({settings.whatsAppNumber})</span>
+                  <Phone className="w-4 h-4 text-amber-700" />
+                  Call
                 </a>
-
-                <button
-                  onClick={() => handleNavClick('/track')}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-amber-100 text-amber-950 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                <a
+                  href={settings.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white border border-amber-200 text-[#1E1915] font-bold text-sm"
                 >
-                  <Navigation className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Track Order</span>
-                </button>
+                  <Navigation className="w-4 h-4 text-amber-700" />
+                  Directions
+                </a>
               </div>
             </div>
           </div>
