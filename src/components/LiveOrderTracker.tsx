@@ -4,16 +4,21 @@ import {
   Navigation,
   Clock,
   CheckCircle2,
+  Check,
   AlertCircle,
   ExternalLink,
   Radio,
   Phone,
   RotateCw,
   Compass,
+  Calendar,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { Order, OrderStatus, LiveLocation } from '../types';
 import { useApp } from '../context/AppContext';
 import { InteractiveLiveMap } from './InteractiveLiveMap';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface LiveOrderTrackerProps {
   order: Order;
@@ -35,7 +40,7 @@ function computeDistanceKm(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * c * 10) / 10;
 }
 
-export const LiveOrderTracker: React.FC<LiveOrderTrackerProps> = ({ order, isAdminView = false }) => {
+const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAdminView = false }) => {
   const { updateOrderLocation, showToast } = useApp();
   const [isWatchingRider, setIsWatchingRider] = useState(false);
   const [isUpdatingCustomerLoc, setIsUpdatingCustomerLoc] = useState(false);
@@ -206,6 +211,75 @@ export const LiveOrderTracker: React.FC<LiveOrderTrackerProps> = ({ order, isAdm
           )}
         </div>
       </div>
+
+      {/* COMPLETED BANNER: Big Round Green Circle with Green Writing & Permanent Date/Time */}
+      {(order.status === 'Delivered' || order.status === 'Completed') && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-emerald-50 to-emerald-100/70 border-2 border-emerald-400 text-center space-y-4 shadow-md">
+          {/* Big Round Green Circle with Bold White Right Check */}
+          <div className="relative inline-block">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-2xl ring-8 ring-emerald-200/80">
+              <Check className="w-12 h-12 sm:w-14 sm:h-14 stroke-[3.5]" />
+            </div>
+            <div className="absolute -top-1 -right-1 bg-white p-1 rounded-full shadow-md text-emerald-600">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-200 text-emerald-950 text-xs font-black uppercase tracking-wider">
+              <span>✓ ऑर्डर सफलतापूर्वक पूरा हुआ</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-emerald-800">
+              ऑर्डर डिलीवर हो गया! (ORDER COMPLETED)
+            </h3>
+            <p className="text-xs sm:text-sm text-emerald-900/90 font-medium max-w-md mx-auto">
+              आपका पिज़्ज़ा ऑर्डर सफलतापूर्वक आपके दिए गए पते पर डिलीवर कर दिया गया है। SK Pizza Point चुनने के लिए धन्यवाद!
+            </p>
+          </div>
+
+          {/* Permanent Date & Time Record Stamped Forever */}
+          <div className="pt-3 border-t border-emerald-300/80 flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-emerald-950">
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs">
+              <Calendar className="w-4 h-4 text-emerald-600" />
+              <span>ऑर्डर दिनांक: {new Date(order.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs">
+              <Clock className="w-4 h-4 text-emerald-600" />
+              <span>डिलीवरी समय: {new Date(order.updatedAt || order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs font-mono">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>ID: #{order.id} (Permanent Record)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROCESSING BANNER: In-Progress Status with Pickup & Kitchen Details */}
+      {order.status !== 'Delivered' && order.status !== 'Completed' && order.status !== 'Cancelled' && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/95 border-2 border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+              <span className="text-xs font-black uppercase tracking-wider text-amber-950">
+                ऑर्डर अभी प्रोसेसिंग में चल रहा है (Order Under Processing)
+              </span>
+            </div>
+            <p className="text-xs text-[#55473E] font-semibold">
+              {order.status === 'Preparing'
+                ? '🍕 पिज़्ज़ा किचन में तैयार हो रहा है (Kitchen is baking fresh in stone oven)'
+                : order.status === 'Out for delivery'
+                ? '🛵 राइडर ने ऑर्डर पिकअप कर लिया है और आपके पते की ओर निकल चुका है!'
+                : '📝 आपका ऑर्डर प्राप्त हो गया है और किचन टीम द्वारा कन्फर्म हो रहा है।'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto text-xs bg-white px-3.5 py-2 rounded-xl border border-amber-300 font-bold text-amber-950 shrink-0">
+            <Clock className="w-4 h-4 text-amber-700" />
+            <span>ऑर्डर समय: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        </div>
+      )}
 
       {/* Progress Stepper */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-2">
@@ -412,3 +486,15 @@ export const LiveOrderTracker: React.FC<LiveOrderTrackerProps> = ({ order, isAdm
     </div>
   );
 };
+
+export const LiveOrderTracker: React.FC<LiveOrderTrackerProps> = (props) => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Order Tracker Viewer"
+      fallbackMessage="Unable to render tracker graphics. Your order details and updates are safe."
+    >
+      <LiveOrderTrackerInternal {...props} />
+    </ErrorBoundary>
+  );
+};
+

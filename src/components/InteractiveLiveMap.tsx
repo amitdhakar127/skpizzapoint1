@@ -13,7 +13,7 @@ import {
   ExternalLink,
   ZoomIn,
   ZoomOut,
-  Maximize2,
+  AlertTriangle,
 } from 'lucide-react';
 import { LiveLocation } from '../types';
 import {
@@ -26,6 +26,7 @@ import {
   searchAddressQuery,
   LocationSearchResult,
 } from '../lib/locationService';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface InteractiveLiveMapProps {
   mode: 'picker' | 'tracker' | 'admin-view';
@@ -37,7 +38,7 @@ interface InteractiveLiveMapProps {
   orderStatus?: string;
 }
 
-export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
+const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
   mode,
   customerLocation,
   riderLocation,
@@ -53,6 +54,7 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
   const restaurantMarkerRef = useRef<L.Marker | null>(null);
   const routePolylineRef = useRef<L.Polyline | null>(null);
 
+  const [mapInitError, setMapInitError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -118,53 +120,76 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
       iconAnchor: [0, 0],
     });
 
-  // Initialize Map
+  // Initialize Map safely
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
-    const map = L.map(mapContainerRef.current, {
-      center: [initialLat, initialLon],
-      zoom: customerLocation ? 15 : 13,
-      zoomControl: false,
-      attributionControl: false,
-    });
-
-    // Clean OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
-
-    // Add Restaurant Marker
-    const restMarker = L.marker(
-      [RESTAURANT_COORDINATES.latitude, RESTAURANT_COORDINATES.longitude],
-      { icon: createRestaurantIcon() }
-    ).addTo(map);
-    restMarker.bindPopup(`<b>SK Pizza Point</b><br/>${RESTAURANT_COORDINATES.address}`);
-    restaurantMarkerRef.current = restMarker;
-
-    // In Picker mode: allow clicking anywhere to set customer pin
-    if (mode === 'picker') {
-      map.on('click', async (e: L.LeafletMouseEvent) => {
-        const { lat, lng } = e.latlng;
-        handlePinMoved(lat, lng);
-      });
-    }
-
-    mapInstanceRef.current = map;
-
-    // Invalidate size shortly after mounting to fix any render glitches
-    const t = setTimeout(() => {
-      map.invalidateSize();
-    }, 250);
-
-    return () => {
-      clearTimeout(t);
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+    try {
+      // Clear any prior leaflet id left on the DOM node to prevent "Map container is already initialized"
+      const container = mapContainerRef.current as any;
+      if (container._leaflet_id) {
+        delete container._leaflet_id;
       }
-    };
+
+      const map = L.map(mapContainerRef.current, {
+        center: [initialLat, initialLon],
+        zoom: customerLocation ? 15 : 13,
+        zoomControl: false,
+        attributionControl: false,
+      });
+
+      // Clean OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Add Restaurant Marker
+      const restMarker = L.marker(
+        [RESTAURANT_COORDINATES.latitude, RESTAURANT_COORDINATES.longitude],
+        { icon: createRestaurantIcon() }
+      ).addTo(map);
+      restMarker.bindPopup(`<b>SK Pizza Point</b><br/>${RESTAURANT_COORDINATES.address}`);
+      restaurantMarkerRef.current = restMarker;
+
+      // In Picker mode: allow clicking anywhere to set customer pin
+      if (mode === 'picker') {
+        map.on('click', async (e: L.LeafletMouseEvent) => {
+          const { lat, lng } = e.latlng;
+          handlePinMoved(lat, lng);
+        });
+      }
+
+      mapInstanceRef.current = map;
+
+      // Invalidate size shortly after mounting to fix any render glitches
+      const t = setTimeout(() => {
+        try {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        } catch {}
+      }, 250);
+
+      return () => {
+        clearTimeout(t);
+        try {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+          }
+        } catch (cleanupErr) {
+          console.warn('Map cleanup error:', cleanupErr);
+          mapInstanceRef.current = null;
+        }
+        if (container?._leaflet_id) {
+          delete container._leaflet_id;
+        }
+      };
+    } catch (initErr) {
+      console.error('Leaflet map initialization failed:', initErr);
+      setMapInitError('Interactive map viewer fallback active');
+    }
   }, []);
 
   // Update Customer Marker & Route
@@ -172,67 +197,77 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (customerLocation) {
-      const lat = customerLocation.latitude;
-      const lon = customerLocation.longitude;
+    try {
+      if (customerLocation && typeof customerLocation.latitude === 'number' && typeof customerLocation.longitude === 'number') {
+        const lat = customerLocation.latitude;
+        const lon = customerLocation.longitude;
 
-      if (!customerMarkerRef.current) {
-        const marker = L.marker([lat, lon], {
-          icon: createCustomerIcon(),
-          draggable: mode === 'picker',
-        }).addTo(map);
+        if (!customerMarkerRef.current) {
+          const marker = L.marker([lat, lon], {
+            icon: createCustomerIcon(),
+            draggable: mode === 'picker',
+          }).addTo(map);
 
-        if (mode === 'picker') {
-          marker.on('dragend', () => {
-            const pos = marker.getLatLng();
-            handlePinMoved(pos.lat, pos.lng);
-          });
+          if (mode === 'picker') {
+            marker.on('dragend', () => {
+              const pos = marker.getLatLng();
+              handlePinMoved(pos.lat, pos.lng);
+            });
+          }
+
+          customerMarkerRef.current = marker;
+        } else {
+          customerMarkerRef.current.setLatLng([lat, lon]);
         }
 
-        customerMarkerRef.current = marker;
+        // Update route line between restaurant and customer
+        const routePoints: [number, number][] = [
+          [RESTAURANT_COORDINATES.latitude, RESTAURANT_COORDINATES.longitude],
+        ];
+
+        if (riderLocation && typeof riderLocation.latitude === 'number' && typeof riderLocation.longitude === 'number') {
+          routePoints.push([riderLocation.latitude, riderLocation.longitude]);
+        }
+        routePoints.push([lat, lon]);
+
+        if (routePolylineRef.current) {
+          routePolylineRef.current.setLatLngs(routePoints);
+        } else {
+          routePolylineRef.current = L.polyline(routePoints, {
+            color: '#F59E0B',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '8, 8',
+          }).addTo(map);
+        }
+
+        // Fit bounds safely to show both restaurant and customer if in tracker mode
+        if (mode === 'tracker' || mode === 'admin-view') {
+          const validLayers: L.Layer[] = [];
+          if (restaurantMarkerRef.current) validLayers.push(restaurantMarkerRef.current);
+          if (customerMarkerRef.current) validLayers.push(customerMarkerRef.current);
+          if (riderMarkerRef.current) validLayers.push(riderMarkerRef.current);
+
+          if (validLayers.length > 0) {
+            const group = L.featureGroup(validLayers);
+            const bounds = group.getBounds();
+            if (bounds.isValid()) {
+              map.fitBounds(bounds.pad(0.2), { maxZoom: 16, animate: false });
+            }
+          }
+        }
       } else {
-        customerMarkerRef.current.setLatLng([lat, lon]);
+        if (customerMarkerRef.current) {
+          customerMarkerRef.current.remove();
+          customerMarkerRef.current = null;
+        }
+        if (routePolylineRef.current) {
+          routePolylineRef.current.remove();
+          routePolylineRef.current = null;
+        }
       }
-
-      // Update route line between restaurant and customer
-      const routePoints: [number, number][] = [
-        [RESTAURANT_COORDINATES.latitude, RESTAURANT_COORDINATES.longitude],
-      ];
-
-      if (riderLocation) {
-        routePoints.push([riderLocation.latitude, riderLocation.longitude]);
-      }
-      routePoints.push([lat, lon]);
-
-      if (routePolylineRef.current) {
-        routePolylineRef.current.setLatLngs(routePoints);
-      } else {
-        routePolylineRef.current = L.polyline(routePoints, {
-          color: '#F59E0B',
-          weight: 4,
-          opacity: 0.85,
-          dashArray: '8, 8',
-        }).addTo(map);
-      }
-
-      // Fit bounds to show both restaurant and customer if in tracker mode
-      if (mode === 'tracker' || mode === 'admin-view') {
-        const group = L.featureGroup([
-          restaurantMarkerRef.current!,
-          customerMarkerRef.current!,
-          ...(riderMarkerRef.current ? [riderMarkerRef.current] : []),
-        ]);
-        map.fitBounds(group.getBounds().pad(0.2));
-      }
-    } else {
-      if (customerMarkerRef.current) {
-        customerMarkerRef.current.remove();
-        customerMarkerRef.current = null;
-      }
-      if (routePolylineRef.current) {
-        routePolylineRef.current.remove();
-        routePolylineRef.current = null;
-      }
+    } catch (updateErr) {
+      console.warn('Customer marker update error:', updateErr);
     }
   }, [customerLocation, mode]);
 
@@ -241,81 +276,105 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (riderLocation) {
-      if (!riderMarkerRef.current) {
-        const marker = L.marker([riderLocation.latitude, riderLocation.longitude], {
-          icon: createRiderIcon(riderLocation.speed),
-        }).addTo(map);
-        riderMarkerRef.current = marker;
-      } else {
-        riderMarkerRef.current.setLatLng([riderLocation.latitude, riderLocation.longitude]);
-        riderMarkerRef.current.setIcon(createRiderIcon(riderLocation.speed));
+    try {
+      if (riderLocation && typeof riderLocation.latitude === 'number' && typeof riderLocation.longitude === 'number') {
+        if (!riderMarkerRef.current) {
+          const marker = L.marker([riderLocation.latitude, riderLocation.longitude], {
+            icon: createRiderIcon(riderLocation.speed),
+          }).addTo(map);
+          riderMarkerRef.current = marker;
+        } else {
+          riderMarkerRef.current.setLatLng([riderLocation.latitude, riderLocation.longitude]);
+          riderMarkerRef.current.setIcon(createRiderIcon(riderLocation.speed));
+        }
+      } else if (riderMarkerRef.current) {
+        riderMarkerRef.current.remove();
+        riderMarkerRef.current = null;
       }
-    } else if (riderMarkerRef.current) {
-      riderMarkerRef.current.remove();
-      riderMarkerRef.current = null;
+    } catch (riderErr) {
+      console.warn('Rider marker update error:', riderErr);
     }
   }, [riderLocation]);
 
   // Helper when pin is moved/clicked
   const handlePinMoved = async (lat: number, lon: number) => {
-    const rev = await reverseGeocodeCoords(lat, lon);
-    const updatedLoc: LiveLocation = {
+    if (!onLocationChange) return;
+
+    const address = await reverseGeocodeCoords(lat, lon);
+    const newLoc: LiveLocation = {
       latitude: lat,
       longitude: lon,
-      accuracy: 10,
-      addressText: rev.road || rev.fullAddress,
-      googleMapsLink: getGoogleMapsPinUrl(lat, lon),
+      addressText: address,
       updatedAt: new Date().toISOString(),
+      googleMapsLink: getGoogleMapsPinUrl(lat, lon),
     };
-
-    onLocationChange?.(updatedLoc);
-
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.panTo([lat, lon]);
-    }
+    onLocationChange(newLoc);
   };
 
-  // Search Address Handle
-  const handleSearchSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    const results = await searchAddressQuery(searchQuery);
-    setSearchResults(results);
-    setIsSearching(false);
-    setSearchOpen(true);
-  };
-
-  const handleSelectSearchResult = (res: LocationSearchResult) => {
-    handlePinMoved(res.lat, res.lon);
-    setSearchOpen(false);
-    setSearchQuery(res.name);
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([res.lat, res.lon], 16);
-    }
-  };
-
-  // Locate current device button
+  // Locate current device GPS
   const handleLocateMe = () => {
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
     setIsLocatingDevice(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsLocatingDevice(false);
-        handlePinMoved(pos.coords.latitude, pos.coords.longitude);
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
         if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([pos.coords.latitude, pos.coords.longitude], 16);
+          mapInstanceRef.current.setView([latitude, longitude], 16);
         }
-      },
-      () => {
+        if (onLocationChange) {
+          const address = await reverseGeocodeCoords(latitude, longitude);
+          onLocationChange({
+            latitude,
+            longitude,
+            accuracy: Math.round(accuracy),
+            addressText: address,
+            updatedAt: new Date().toISOString(),
+            googleMapsLink: getGoogleMapsPinUrl(latitude, longitude),
+          });
+        }
         setIsLocatingDevice(false);
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        setIsLocatingDevice(false);
+        alert('Could not access device GPS. Please check location permissions.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
-  // Calculations
+  // Search address query
+  const handleSearchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchOpen(true);
+    const results = await searchAddressQuery(searchQuery.trim());
+    setSearchResults(results);
+    setIsSearching(false);
+  };
+
+  const handleSelectSearchResult = async (result: LocationSearchResult) => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([result.latitude, result.longitude], 16);
+    }
+    if (onLocationChange) {
+      onLocationChange({
+        latitude: result.latitude,
+        longitude: result.longitude,
+        addressText: result.displayName,
+        updatedAt: new Date().toISOString(),
+        googleMapsLink: getGoogleMapsPinUrl(result.latitude, result.longitude),
+      });
+    }
+    setSearchOpen(false);
+    setSearchQuery(result.displayName.split(',')[0]);
+  };
+
   const distanceKm = customerLocation
     ? calculateDistanceKm(
         RESTAURANT_COORDINATES.latitude,
@@ -327,50 +386,98 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
 
   const etaMinutes = distanceKm !== null ? estimateEtaMinutes(distanceKm) : null;
 
+  // Fallback UI if WebGL or Leaflet encounters an initialization error
+  if (mapInitError) {
+    return (
+      <div
+        style={{ height, minHeight: '220px' }}
+        className="w-full rounded-2xl bg-neutral-900 border border-neutral-700 p-5 flex flex-col justify-between text-white"
+      >
+        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Compass className="w-5 h-5 text-amber-400" />
+            <h4 className="font-black text-sm text-amber-400">Live GPS Navigation Route</h4>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-neutral-800 text-neutral-300">
+            Direct GPS Active
+          </span>
+        </div>
+
+        <div className="space-y-3 my-auto py-2">
+          <div className="p-3 rounded-xl bg-neutral-800 border border-neutral-700 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+              📍 Customer Delivery Point
+            </span>
+            <p className="text-xs text-neutral-200">
+              {customerLocation?.addressText || 'GPS Coordinates pinned'}
+            </p>
+            {customerLocation && (
+              <p className="font-mono text-[11px] text-neutral-400">
+                {customerLocation.latitude.toFixed(5)}, {customerLocation.longitude.toFixed(5)}
+              </p>
+            )}
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/40 flex items-center justify-between text-xs">
+            <span className="text-amber-200 font-bold">Kitchen: SK Pizza Point</span>
+            {distanceKm !== null && (
+              <span className="text-amber-300 font-extrabold">{distanceKm} km away • ~{etaMinutes} min</span>
+            )}
+          </div>
+        </div>
+
+        {customerLocation && (
+          <a
+            href={getGoogleMapsNavigationUrl(customerLocation.latitude, customerLocation.longitude)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95"
+          >
+            <Navigation className="w-4 h-4" />
+            <span>Open in Google Maps Navigation (रास्ता देखें)</span>
+          </a>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative rounded-2xl overflow-hidden border-2 border-amber-300/80 shadow-md bg-neutral-100">
-      {/* Search Bar in Picker Mode */}
+    <div className="relative w-full rounded-2xl overflow-hidden border border-amber-300 shadow-md bg-neutral-100">
+      {/* Picker Search Overlay */}
       {mode === 'picker' && (
         <div className="absolute top-3 left-3 right-3 z-[1000] space-y-1">
-          <form onSubmit={handleSearchSubmit} className="relative flex items-center shadow-lg">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (!searchOpen) setSearchOpen(true);
-              }}
-              placeholder="Search colony, street, or landmark (e.g. Sector 14, Main Road)..."
-              className="w-full pl-9 pr-24 py-2.5 rounded-xl bg-white border border-amber-300 text-xs font-semibold text-[#1E1915] placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm"
-            />
-            <Search className="w-4 h-4 text-neutral-400 absolute left-3 pointer-events-none" />
-
-            <div className="absolute right-1.5 flex items-center gap-1">
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] shadow-xs cursor-pointer"
-              >
-                {isSearching ? 'Searching...' : 'Find'}
-              </button>
+          <form onSubmit={handleSearchSubmit} className="flex gap-1.5 shadow-lg">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search area, landmark or street in town..."
+                className="w-full pl-9 pr-3 py-2 bg-white/95 backdrop-blur-md rounded-xl text-xs font-semibold text-neutral-800 border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm"
+              />
             </div>
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer shrink-0"
+            >
+              {isSearching ? '...' : 'Search'}
+            </button>
           </form>
 
           {/* Search Results Dropdown */}
           {searchOpen && searchResults.length > 0 && (
-            <div className="bg-white rounded-xl border border-amber-200 shadow-xl max-h-48 overflow-y-auto divide-y divide-amber-100 text-xs">
-              {searchResults.map((res) => (
+            <div className="bg-white rounded-xl shadow-2xl border border-neutral-200 max-h-48 overflow-y-auto divide-y divide-neutral-100 text-xs">
+              {searchResults.map((r, idx) => (
                 <button
-                  key={res.placeId}
+                  key={idx}
                   type="button"
-                  onClick={() => handleSelectSearchResult(res)}
-                  className="w-full text-left p-2.5 hover:bg-amber-50 transition-colors flex items-start gap-2"
+                  onClick={() => handleSelectSearchResult(r)}
+                  className="w-full p-2.5 text-left hover:bg-amber-50 transition-colors flex items-start gap-2 cursor-pointer"
                 >
                   <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-[#1E1915]">{res.name}</strong>
-                    <span className="text-[10px] text-[#6B5B4F] line-clamp-1">{res.displayName}</span>
-                  </div>
+                  <span className="truncate text-neutral-700 font-medium">{r.displayName}</span>
                 </button>
               ))}
             </div>
@@ -379,13 +486,17 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
       )}
 
       {/* Map Container Element */}
-      <div ref={mapContainerRef} style={{ height, width: '100%' }} className="z-0" />
+      <div ref={mapContainerRef} style={{ height, width: '100%', minHeight: '220px' }} className="z-0" />
 
       {/* Floating Map Controls */}
       <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1.5">
         <button
           type="button"
-          onClick={() => mapInstanceRef.current?.zoomIn()}
+          onClick={() => {
+            try {
+              mapInstanceRef.current?.zoomIn();
+            } catch {}
+          }}
           className="w-8 h-8 rounded-xl bg-white text-neutral-800 shadow-md border border-neutral-200 flex items-center justify-center font-bold hover:bg-neutral-50 active:scale-95 cursor-pointer"
           title="Zoom In"
         >
@@ -394,7 +505,11 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
 
         <button
           type="button"
-          onClick={() => mapInstanceRef.current?.zoomOut()}
+          onClick={() => {
+            try {
+              mapInstanceRef.current?.zoomOut();
+            } catch {}
+          }}
           className="w-8 h-8 rounded-xl bg-white text-neutral-800 shadow-md border border-neutral-200 flex items-center justify-center font-bold hover:bg-neutral-50 active:scale-95 cursor-pointer"
           title="Zoom Out"
         >
@@ -456,5 +571,16 @@ export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = ({
         )}
       </div>
     </div>
+  );
+};
+
+export const InteractiveLiveMap: React.FC<InteractiveLiveMapProps> = (props) => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Map Route Preview"
+      fallbackMessage="Map rendering safely adjusted. Direct Google Maps navigation is available below."
+    >
+      <InteractiveLiveMapInternal {...props} />
+    </ErrorBoundary>
   );
 };

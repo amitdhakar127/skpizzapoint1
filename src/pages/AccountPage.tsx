@@ -9,6 +9,7 @@ import {
   LogOut,
   Clock,
   CheckCircle2,
+  Check,
   AlertCircle,
   MessageCircle,
   ShoppingBag,
@@ -17,10 +18,12 @@ import {
   ChevronRight,
   ShieldCheck,
   Navigation,
+  RotateCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
-export const AccountPage: React.FC = () => {
+const AccountPageInternal: React.FC = () => {
   const {
     currentUser,
     userProfile,
@@ -343,35 +346,59 @@ export const AccountPage: React.FC = () => {
                     key={order.id}
                     className="p-6 rounded-3xl bg-white border border-amber-200/80 shadow-sm space-y-4 hover:border-amber-300 transition-colors"
                   >
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-sm text-[#1E1915]">
-                            {order.id}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${getStatusBadge(
-                              order.status
-                            )}`}
-                          >
-                            {order.status}
+                    {/* Header with Prominent Status Circle & Permanent Date/Time */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-100">
+                      <div className="flex items-center gap-3">
+                        {order.status === 'Delivered' || order.status === 'Completed' ? (
+                          /* Big Round Green Circle with Bold White Right Check */
+                          <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md ring-4 ring-emerald-100 shrink-0" title="Order Completed">
+                            <Check className="w-7 h-7 stroke-[3.5]" />
+                          </div>
+                        ) : (
+                          /* Processing Active Round Circle */
+                          <div className="w-12 h-12 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center shadow-md ring-4 ring-amber-100 shrink-0 animate-pulse" title="Order Processing">
+                            <RotateCw className="w-6 h-6 animate-spin" />
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-[#1E1915]">
+                              #{order.id}
+                            </span>
+                            {order.status === 'Delivered' || order.status === 'Completed' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                ✓ ऑर्डर कम्प्लीट (Delivered)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                                🔄 प्रोसेसिंग में ({order.status})
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-[#6B5B4F] font-semibold flex items-center gap-1.5 mt-0.5">
+                            <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                            <span>
+                              {new Date(order.createdAt).toLocaleDateString('hi-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                            <span>•</span>
+                            <Clock className="w-3.5 h-3.5 text-amber-700" />
+                            <span>
+                              {new Date(order.createdAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
                           </span>
                         </div>
-                        <span className="text-[11px] text-[#8A7B70] flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          {new Date(order.createdAt).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-xs text-[#8A7B70] block">Total Amount</span>
+                      <div className="text-right self-start sm:self-auto">
+                        <span className="text-xs text-[#8A7B70] block font-medium">Grand Total</span>
                         <span className="text-lg font-black text-amber-700">
                           {formatPrice(order.finalTotal)}
                         </span>
@@ -442,3 +469,15 @@ export const AccountPage: React.FC = () => {
     </div>
   );
 };
+
+export const AccountPage: React.FC = () => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Account Profile View"
+      fallbackMessage="Unable to load customer account. Your orders and details are safe."
+    >
+      <AccountPageInternal />
+    </ErrorBoundary>
+  );
+};
+

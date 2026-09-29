@@ -263,7 +263,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [gallery, setGallery] = useState<GalleryItem[]>(INITIAL_GALLERY);
   const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const saved = localStorage.getItem('sk_pizza_local_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
   const [activeBroadcast, setActiveBroadcast] = useState<BroadcastNotification | null>(null);
   const [isSoundMuted, setIsSoundMuted] = useState<boolean>(() => soundAlerts.getIsMuted());
@@ -999,7 +1006,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Immediate responsive state update
       setActiveOrder(newOrder);
-      setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)]);
+      setOrders((prev) => {
+        const next = [newOrder, ...prev.filter((o) => o.id !== newOrder.id)];
+        try {
+          localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 50)));
+        } catch {}
+        return next;
+      });
       clearCart();
 
       // Write to Firebase Realtime Database
@@ -1189,12 +1202,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [showToast]);
 
   const testOrderAlertSound = useCallback(() => {
-    soundAlerts.startContinuousOrderAlarm({
-      id: 'SKP-TEST-101',
-      customerName: 'राहुल शर्मा',
-      amount: 549,
-    });
-    showToast('🚨 Testing Continuous Loud Alarm (Looping with vibration until stopped)', 'info');
+    soundAlerts.testAlarm();
+    showToast('🚨 सायरन टेस्ट शुरू! (Testing Continuous Loud Siren & Vibration)', 'info');
   }, [showToast]);
 
   const dismissOrderAlert = useCallback(() => {

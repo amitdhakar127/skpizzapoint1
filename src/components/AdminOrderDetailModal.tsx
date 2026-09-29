@@ -23,13 +23,14 @@ import { Order, OrderStatus } from '../types';
 import { InteractiveLiveMap } from './InteractiveLiveMap';
 import { useApp } from '../context/AppContext';
 import { getGoogleMapsNavigationUrl } from '../lib/locationService';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface AdminOrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
 }
 
-export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({ order, onClose }) => {
+const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ order, onClose }) => {
   const {
     updateOrderStatus,
     updateOrderPaymentStatus,
@@ -396,3 +397,15 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({ or
     </div>
   );
 };
+
+export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = (props) => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Order Details Error"
+      fallbackMessage="Unable to render the full order modal. Please close and re-open."
+    >
+      <AdminOrderDetailModalInternal {...props} />
+    </ErrorBoundary>
+  );
+};
+

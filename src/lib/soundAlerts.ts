@@ -289,6 +289,27 @@ class SoundAlertManager {
     return this.isAlarmActive;
   }
 
+  // One-click Test Siren for Owner to verify sound & audio permissions
+  public testAlarm(): void {
+    this.isMuted = false;
+    const ctx = this.getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission().catch(() => {});
+      } catch {}
+    }
+
+    this.startContinuousOrderAlarm({
+      id: 'TEST-ALERT',
+      customerName: 'Test Order (सायरन टेस्ट)',
+      amount: 549,
+    });
+  }
+
   public getActiveAlarmOrder(): ActiveAlarmOrder | null {
     return this.currentAlarmOrder;
   }
