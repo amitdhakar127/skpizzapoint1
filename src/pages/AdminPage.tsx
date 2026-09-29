@@ -35,6 +35,8 @@ import {
   Table as TableIcon,
   List as ListIcon,
   MapPin as MapPinIcon,
+  MoreHorizontal,
+  BellRing,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AdminLoginPage } from './AdminLoginPage';
@@ -42,8 +44,9 @@ import { Product, OrderStatus, GalleryItem, VideoItem, PizzaSize, ProductCategor
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
 import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
-export const AdminPage: React.FC = () => {
+const AdminPageInternal: React.FC = () => {
   const {
     currentUser,
     isAdmin,
@@ -129,6 +132,17 @@ export const AdminPage: React.FC = () => {
   const [orderFilterStatus, setOrderFilterStatus] = useState<string>('all');
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
   const [ordersViewMode, setOrdersViewMode] = useState<'sheet' | 'cards'>('cards');
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState<boolean>(false);
+
+  // High list sorting: Newest placed orders are ALWAYS at the top!
+  const sortedOrders = [...orders].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  const pendingOrdersCount = orders.filter((o) => {
+    const s = (o.status || '').toLowerCase().trim();
+    return s.includes('pending') || s.includes('received') || s.includes('whatsapp') || s === 'draft';
+  }).length;
 
   const isOrderMatchingFilter = (ord: Order, filter: string) => {
     if (filter === 'all') return true;
@@ -448,15 +462,15 @@ export const AdminPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Voice & Sound Alert Controls */}
+          {/* High Priority Siren Test Button */}
           <button
             type="button"
             onClick={() => testOrderAlertSound()}
-            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Test Voice Announcement Alert (नया ऑर्डर आया है!)"
+            className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 ring-2 ring-amber-400/50"
+            title="Test Loud Repeating Order Siren (सायरन टेस्ट करें)"
           >
-            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Test Voice Alert</span>
+            <BellRing className="w-3.5 h-3.5 text-yellow-300 animate-wiggle" />
+            <span>🚨 सायरन टेस्ट (Test Siren)</span>
           </button>
 
           <button
@@ -533,8 +547,8 @@ export const AdminPage: React.FC = () => {
 
       {/* Admin Layout */}
       <div className="flex-1 flex flex-col md:flex-row">
-        {/* Sidebar */}
-        <aside className="w-full md:w-64 bg-white border-r border-amber-200/80 p-4 space-y-1.5 shrink-0">
+        {/* Desktop Sidebar (Hidden on mobile / Android APK to provide native app experience) */}
+        <aside className="hidden md:block w-64 bg-white border-r border-amber-200/80 p-4 space-y-1.5 shrink-0">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'products', label: `Products (${products.length})`, icon: Utensils },
@@ -579,8 +593,8 @@ export const AdminPage: React.FC = () => {
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6">
+        {/* Main Content Area (pb-28 on mobile ensures bottom bar never obscures content) */}
+        <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-6 pb-28 md:pb-8">
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-fade-in">
@@ -915,7 +929,7 @@ export const AdminPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-amber-100 font-medium">
-                        {orders
+                        {sortedOrders
                           .filter((ord) => isOrderMatchingFilter(ord, orderFilterStatus))
                           .map((order) => (
                             <tr
@@ -1006,7 +1020,7 @@ export const AdminPage: React.FC = () => {
               ) : (
                 /* CARDS VIEW */
                 <div className="space-y-6">
-                  {orders
+                  {sortedOrders
                     .filter((ord) => isOrderMatchingFilter(ord, orderFilterStatus))
                     .map((order) => {
                       const primaryStatuses: OrderStatus[] = [
@@ -2474,6 +2488,145 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* 5. Mobile Native App Bottom Navigation Bar (Android Partner App Layout - नीचे टाइटल/नेविगेशन बार) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#16120E] border-t-2 border-amber-500/40 px-2 py-1.5 flex items-center justify-around md:hidden shadow-2xl backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab('orders')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer relative ${
+            activeTab === 'orders' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <ShoppingBag className={`w-5 h-5 ${activeTab === 'orders' ? 'text-amber-400 scale-110' : ''}`} />
+          <span className="text-[10px] font-bold">ऑर्डर ({orders.length})</span>
+          {pendingOrdersCount > 0 && (
+            <span className="absolute -top-1 right-2 w-4 h-4 bg-red-600 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
+              {pendingOrdersCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('products')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'products' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Utensils className={`w-5 h-5 ${activeTab === 'products' ? 'text-amber-400 scale-110' : ''}`} />
+          <span className="text-[10px] font-bold">मेन्यू ({products.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'dashboard' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 scale-110' : ''}`} />
+          <span className="text-[10px] font-bold">होम</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('broadcasts')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'broadcasts' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Bell className={`w-5 h-5 ${activeTab === 'broadcasts' ? 'text-amber-400 scale-110' : ''}`} />
+          <span className="text-[10px] font-bold">अलर्ट</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsMobileMoreOpen(true)}
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            ['prices', 'gallery', 'videos', 'reviews', 'settings'].includes(activeTab)
+              ? 'text-amber-400 font-black'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <MoreHorizontal className="w-5 h-5" />
+          <span className="text-[10px] font-bold">अन्य (More)</span>
+        </button>
+      </nav>
+
+      {/* Mobile More Drawer / Sheet */}
+      {isMobileMoreOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-xs md:hidden animate-fade-in">
+          <div className="bg-[#1C1713] border-t-2 border-amber-400 rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+              <h3 className="font-black text-sm text-amber-400 uppercase tracking-wide">
+                Admin More Features (अन्य विकल्प)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsMobileMoreOpen(false)}
+                className="p-1 rounded-xl bg-neutral-800 text-neutral-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+              {[
+                { id: 'prices', label: 'Price Manager', icon: DollarSign },
+                { id: 'settings', label: 'Restaurant Settings', icon: Settings },
+                { id: 'gallery', label: `Gallery (${gallery.length})`, icon: ImageIcon },
+                { id: 'videos', label: `Videos (${videos.length})`, icon: VideoIcon },
+                { id: 'reviews', label: `Reviews (${reviews.length})`, icon: MessageSquare },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isCur = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id as AdminTab);
+                      setIsMobileMoreOpen(false);
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                      isCur
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                        : 'bg-neutral-900 border-neutral-800 text-neutral-200 hover:bg-neutral-800'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isCur ? 'text-slate-950' : 'text-amber-400'}`} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileMoreOpen(false);
+                  syncInitialDataToCloud();
+                }}
+                className="px-4 py-2.5 rounded-xl bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Sync to Cloud</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Live Website</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 4: COMPREHENSIVE ORDER DETAIL & LIVE ROUTE MAP MODAL */}
       {selectedOrderForModal && (
         <AdminOrderDetailModal
@@ -2482,5 +2635,16 @@ export const AdminPage: React.FC = () => {
         />
       )}
     </div>
+  );
+};
+
+export const AdminPage: React.FC = () => {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Admin Studio Error"
+      fallbackMessage="Unable to load the admin console. Please refresh."
+    >
+      <AdminPageInternal />
+    </ErrorBoundary>
   );
 };

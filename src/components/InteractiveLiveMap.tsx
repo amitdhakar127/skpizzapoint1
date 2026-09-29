@@ -304,7 +304,7 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
     const newLoc: LiveLocation = {
       latitude: lat,
       longitude: lon,
-      addressText: address,
+      addressText: typeof address === 'string' ? address : address.fullAddress,
       updatedAt: new Date().toISOString(),
       googleMapsLink: getGoogleMapsPinUrl(lat, lon),
     };
@@ -330,7 +330,7 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
             latitude,
             longitude,
             accuracy: Math.round(accuracy),
-            addressText: address,
+            addressText: typeof address === 'string' ? address : address.fullAddress,
             updatedAt: new Date().toISOString(),
             googleMapsLink: getGoogleMapsPinUrl(latitude, longitude),
           });
@@ -360,15 +360,15 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
 
   const handleSelectSearchResult = async (result: LocationSearchResult) => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([result.latitude, result.longitude], 16);
+      mapInstanceRef.current.setView([result.lat, result.lon], 16);
     }
     if (onLocationChange) {
       onLocationChange({
-        latitude: result.latitude,
-        longitude: result.longitude,
+        latitude: result.lat,
+        longitude: result.lon,
         addressText: result.displayName,
         updatedAt: new Date().toISOString(),
-        googleMapsLink: getGoogleMapsPinUrl(result.latitude, result.longitude),
+        googleMapsLink: getGoogleMapsPinUrl(result.lat, result.lon),
       });
     }
     setSearchOpen(false);

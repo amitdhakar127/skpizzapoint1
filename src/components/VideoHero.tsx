@@ -1,15 +1,38 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Flame, Sparkles, MessageCircle, MapPin, ArrowRight, ShieldCheck, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  Flame,
+  Sparkles,
+  MessageCircle,
+  MapPin,
+  ArrowRight,
+  ShieldCheck,
+  ChevronDown,
+  Image as ImageIcon,
+  Sliders,
+  Film,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const VideoHero: React.FC = () => {
   const { settings, navigate } = useApp();
+  const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  // Scroll scrub state: scrubs frame-by-frame as user scrolls down!
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
+  const [isScrollDriven, setIsScrollDriven] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [videoLoaded, setVideoLoaded] = useState<boolean>(false);
   const [videoFailed, setVideoFailed] = useState<boolean>(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+
+  const TOTAL_FRAMES = 123;
+  const currentFrame = Math.min(
+    TOTAL_FRAMES,
+    Math.max(1, Math.round(scrollProgress * (TOTAL_FRAMES - 1)) + 1)
+  );
 
   // Check user's OS reduced motion preference
   useEffect(() => {
@@ -25,13 +48,48 @@ export const VideoHero: React.FC = () => {
     }
   }, []);
 
+  // Scroll-driven Frame Scrubbing Engine
+  useEffect(() => {
+    if (!isScrollDriven || prefersReducedMotion) return;
+
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollDistance = window.scrollY;
+          // Calculate progress over the scroll range (e.g., first 700px of scrolling)
+          const maxScroll = Math.max(window.innerHeight * 1.2, 500);
+          const progress = Math.min(Math.max(scrollDistance / maxScroll, 0), 1);
+          setScrollProgress(progress);
+
+          if (videoRef.current && videoRef.current.duration && !isNaN(videoRef.current.duration)) {
+            const targetTime = progress * videoRef.current.duration;
+            if (Math.abs(videoRef.current.currentTime - targetTime) > 0.04) {
+              videoRef.current.currentTime = targetTime;
+            }
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial position sync
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isScrollDriven, prefersReducedMotion]);
+
   // Handle Play/Pause toggle
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
+      setIsScrollDriven(true);
     } else {
+      setIsScrollDriven(false);
       videoRef.current
         .play()
         .then(() => {
@@ -43,10 +101,31 @@ export const VideoHero: React.FC = () => {
     }
   };
 
-  // Smart YouTube ID extraction (handles youtu.be, watch?v=, /shorts/, /embed/)
+  // Toggle Scroll Scrubbing Mode
+  const toggleScrollMode = () => {
+    if (isScrollDriven) {
+      setIsScrollDriven(false);
+      if (videoRef.current) {
+        videoRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {});
+      }
+    } else {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+      setIsPlaying(false);
+      setIsScrollDriven(true);
+    }
+  };
+
+  // Smart YouTube ID extraction
   const extractYouTubeId = (url: string): string | null => {
     if (!url) return null;
-    const match = url.trim().match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|watch\?.+&v=))([\w-]{11})/);
+    const match = url.trim().match(
+      /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|watch\?.+&v=))([\w-]{11})/
+    );
     return match ? match[1] : null;
   };
 
@@ -63,7 +142,6 @@ export const VideoHero: React.FC = () => {
     settings.homepageVideoPosterUrl?.trim() ||
     'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1920&q=80';
 
-  // Smart detection: check if videoUrl looks like an image or mediaType is explicitly 'image'
   const isVideoUrlAnImage =
     /\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(videoUrl) ||
     videoUrl.includes('images.unsplash.com') ||
@@ -75,8 +153,11 @@ export const VideoHero: React.FC = () => {
   const darknessLevel = settings.heroOverlayDarkness || 'balanced';
 
   return (
-    <section className="relative w-full min-h-[85vh] lg:min-h-[92vh] flex items-center justify-center overflow-hidden bg-[#0e0c0a] text-white">
-      {/* Background Layer: Responsive Video, YouTube stream, or High-Res Image */}
+    <section
+      ref={sectionRef}
+      className="relative w-full min-h-[85vh] lg:min-h-[92vh] flex items-center justify-center overflow-hidden bg-[#0e0c0a] text-white"
+    >
+      {/* Background Layer: Scroll-Driven Frame Video, YouTube, or Image */}
       <div className="absolute inset-0 w-full h-full pointer-events-none select-none overflow-hidden">
         {effectiveMediaType === 'image' ? (
           <img
@@ -85,7 +166,6 @@ export const VideoHero: React.FC = () => {
             className="w-full h-full object-cover opacity-95 transition-transform duration-1000 scale-100 hover:scale-105"
           />
         ) : youtubeId && !prefersReducedMotion ? (
-          /* Seamless Auto-looping YouTube Embed without black bars or YouTube UI */
           <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none bg-black">
             <iframe
               src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeId}&playsinline=1&rel=0&showinfo=0&iv_load_policy=3&disablekb=1&modestbranding=1&fs=0`}
@@ -100,11 +180,17 @@ export const VideoHero: React.FC = () => {
             ref={videoRef}
             src={videoUrl}
             poster={imageUrl}
-            autoPlay
+            autoPlay={!isScrollDriven}
             muted
-            loop
+            loop={!isScrollDriven}
             playsInline
-            onLoadedData={() => setVideoLoaded(true)}
+            onLoadedData={() => {
+              setVideoLoaded(true);
+              if (isScrollDriven && videoRef.current) {
+                videoRef.current.pause();
+                videoRef.current.currentTime = 0;
+              }
+            }}
             onError={() => setVideoFailed(true)}
             className={`w-full h-full object-cover transition-opacity duration-700 ${
               videoLoaded ? 'opacity-95' : 'opacity-40'
@@ -127,7 +213,7 @@ export const VideoHero: React.FC = () => {
           />
         )}
 
-        {/* Reduced Overlay Darkness for Bright, Vibrant, Mouthwatering Food Visibility */}
+        {/* Overlay Gradients */}
         {darknessLevel === 'subtle' ? (
           <>
             <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-black/20" />
@@ -139,7 +225,6 @@ export const VideoHero: React.FC = () => {
             <div className="absolute inset-0 bg-radial from-transparent via-[#0B0907]/25 to-[#0B0907]/70" />
           </>
         ) : (
-          /* Balanced (Default) - Noticeably lighter & brighter so pizzas and videos pop! */
           <>
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-black/25" />
             <div className="absolute inset-0 bg-radial from-transparent via-black/15 to-black/45" />
@@ -188,7 +273,7 @@ export const VideoHero: React.FC = () => {
           </span>
         </div>
 
-        {/* CTA Buttons with responsive micro-interactions */}
+        {/* CTA Buttons */}
         <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
           <button
             id="btn-hero-explore-menu"
@@ -228,19 +313,60 @@ export const VideoHero: React.FC = () => {
         )}
       </div>
 
-      {/* Floating Controls: Media Mode / Play / Pause */}
-      <div className="absolute bottom-6 right-6 z-20 flex items-center gap-2">
+      {/* Floating Controls: Scroll Scrub Mode, Frame Indicator, and Play/Pause */}
+      <div className="absolute bottom-6 right-6 z-20 flex flex-wrap items-center gap-2">
         {effectiveMediaType === 'video' && !prefersReducedMotion && !videoFailed && (
-          <button
-            id="btn-hero-video-toggle"
-            onClick={togglePlay}
-            aria-label={isPlaying ? 'Pause background video' : 'Play background video'}
-            title={isPlaying ? 'Pause background video' : 'Play background video'}
-            className="p-2.5 rounded-xl bg-black/65 hover:bg-black/85 text-white border border-white/25 backdrop-blur-md transition-all cursor-pointer shadow-lg active:scale-90"
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
+          <>
+            {/* Scroll Scrubber Frame Counter Pill */}
+            {isScrollDriven && (
+              <div
+                className="px-3 py-1.5 rounded-xl bg-black/75 text-amber-300 border border-amber-400/40 backdrop-blur-md text-xs font-bold flex items-center gap-1.5 shadow-lg select-none"
+                title="Scroll down to scrub frames forward, scroll up to scrub backward"
+              >
+                <Film className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <span>
+                  Frame {currentFrame} / {TOTAL_FRAMES}
+                </span>
+                <span className="text-[10px] text-neutral-300 hidden sm:inline">
+                  • स्क्रोल वीडियो
+                </span>
+              </div>
+            )}
+
+            {/* Toggle Scroll-Driven Scrubbing vs Auto-Play */}
+            <button
+              id="btn-hero-scroll-toggle"
+              type="button"
+              onClick={toggleScrollMode}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border backdrop-blur-md transition-all cursor-pointer flex items-center gap-1.5 shadow-lg active:scale-95 ${
+                isScrollDriven
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                  : 'bg-black/65 hover:bg-black/85 text-white border-white/25'
+              }`}
+              title={
+                isScrollDriven
+                  ? 'Scroll-driven mode active: Scroll up/down to animate frames'
+                  : 'Continuous auto-play active'
+              }
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>{isScrollDriven ? 'Scroll Scrub' : 'Auto Play'}</span>
+            </button>
+
+            {/* Play / Pause Button */}
+            <button
+              id="btn-hero-video-toggle"
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause background video' : 'Play background video'}
+              title={isPlaying ? 'Pause background video' : 'Play background video'}
+              className="p-2.5 rounded-xl bg-black/65 hover:bg-black/85 text-white border border-white/25 backdrop-blur-md transition-all cursor-pointer shadow-lg active:scale-90"
+            >
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+          </>
         )}
+
         {effectiveMediaType === 'image' && (
           <div className="px-2.5 py-1.5 rounded-xl bg-black/60 text-white/80 border border-white/20 backdrop-blur-md text-[11px] font-bold flex items-center gap-1.5">
             <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
@@ -250,8 +376,10 @@ export const VideoHero: React.FC = () => {
       </div>
 
       {/* Scroll Down Indicator */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-neutral-300 flex flex-col items-center pointer-events-none opacity-85">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-300">Scroll to Explore</span>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 text-neutral-300 flex flex-col items-center pointer-events-none opacity-85 select-none">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-300">
+          {isScrollDriven ? 'Scroll to Play Frames' : 'Scroll to Explore'}
+        </span>
         <ChevronDown className="w-4 h-4 animate-bounce mt-1 text-amber-400" />
       </div>
     </section>
