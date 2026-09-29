@@ -23,35 +23,61 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught error:', error, errorInfo);
+    console.error('Global ErrorBoundary caught error:', error, errorInfo);
+
+    // Keep a small diagnostic record locally so a production crash can be
+    // identified without exposing internal error details in the UI.
+    try {
+      localStorage.setItem(
+        'sk_pizza_last_runtime_error',
+        JSON.stringify({
+          message: error?.message || 'Unknown error',
+          name: error?.name || 'Error',
+          stack: error?.stack || '',
+          componentStack: errorInfo?.componentStack || '',
+          path: typeof window !== 'undefined' ? window.location.href : '',
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // Diagnostics must never become another source of failure.
+    }
   }
 
   private handleReset = () => {
+    // Reset the boundary first. If the same render path is still broken,
+    // reload the document so the React tree and Firebase client start cleanly.
     this.setState({ hasError: false, error: null });
+    setTimeout(() => {
+      try {
+        window.location.reload();
+      } catch {
+        // Ignore reload failures; the boundary remains available.
+      }
+    }, 0);
   };
 
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 space-y-2 text-center my-2">
-          <div className="flex items-center justify-center gap-2 text-amber-800">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
-            <h4 className="font-bold text-xs uppercase tracking-wider">
-              {this.props.fallbackTitle || 'Component Reload Needed'}
-            </h4>
+        <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-6">
+          <div className="w-full max-w-lg rounded-3xl bg-white border border-amber-300 shadow-xl p-6 sm:p-8 text-center space-y-4">
+            <div className="flex items-center justify-center gap-2 text-amber-800">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+              <h1 className="font-black text-lg sm:text-xl">Temporary App Error</h1>
+            </div>
+            <p className="text-sm text-neutral-700 leading-6">
+              The app hit a temporary problem while rendering this page. Your saved order data is preserved locally. Please reload the app to continue.
+            </p>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm inline-flex items-center gap-2 shadow-sm cursor-pointer transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Reload App</span>
+            </button>
           </div>
-          <p className="text-xs text-amber-900 max-w-md mx-auto">
-            {this.props.fallbackMessage ||
-              'A temporary visual glitch occurred. Your order data is safe.'}
-          </p>
-          <button
-            type="button"
-            onClick={this.handleReset}
-            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Retry View</span>
-          </button>
         </div>
       );
     }
