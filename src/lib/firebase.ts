@@ -15,18 +15,17 @@ export const firebaseConfig = {
   measurementId: "G-2PCKS90TDV"
 };
 
-// Intended Administrator UID provided by owner
 export const AUTHORIZED_ADMIN_UID = "vxIlz4pYZgM646mXmp2BQuXtYz32";
 
-// Initialize Firebase once
+// Initialize Firebase exactly once. If Firebase was already initialized by
+// another module, reuse that app rather than creating a second instance.
 export const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firebase Services
+// Initialize Firebase Services from the same app instance.
 export const auth: Auth = getAuth(app);
 export const rtdb: Database = getDatabase(app);
 export const storage: FirebaseStorage = getStorage(app);
 
-// Helper to check if a signed-in user is the verified administrator
 export const isUserAdmin = (uid: string | null | undefined, email?: string | null): boolean => {
   if (!uid && !email) return false;
   if (uid && uid.trim() === AUTHORIZED_ADMIN_UID.trim()) return true;
