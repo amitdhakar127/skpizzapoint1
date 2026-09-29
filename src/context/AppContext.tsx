@@ -21,6 +21,7 @@ import {
   INITIAL_GALLERY,
   INITIAL_VIDEOS,
   INITIAL_REVIEWS,
+  INITIAL_ORDERS,
 } from '../data/initialData';
 import {
   auth,

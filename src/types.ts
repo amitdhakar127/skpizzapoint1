@@ -83,6 +83,7 @@ export interface OrderItemSnapshot {
   productId: string;
   productName: string;
   category: ProductCategory;
+  imageUrl?: string;
   size: string;
   quantity: number;
   unitPrice: number;
