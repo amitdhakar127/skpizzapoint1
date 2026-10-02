@@ -27,9 +27,9 @@ export const AdminLoginPage: React.FC = () => {
     settings,
   } = useApp();
 
-  const [loginMode, setLoginMode] = useState<'passcode' | 'firebase'>('passcode');
+  const [loginMode, setLoginMode] = useState<'passcode' | 'firebase'>('firebase');
   const [passcode, setPasscode] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('zyvoraofficial3@gmail.com');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +37,7 @@ export const AdminLoginPage: React.FC = () => {
   const [resetSent, setResetSent] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
+  // If already logged in as authorized admin
   if (isAdmin) {
     return (
       <div className="min-h-[85vh] flex items-center justify-center p-4 bg-[#FFFDF9]">
@@ -50,12 +51,13 @@ export const AdminLoginPage: React.FC = () => {
               Logged in as <strong className="text-[#1E1915]">{currentUser?.email || 'Passcode Authorized Partner'}</strong>
             </p>
           </div>
+
           <div className="space-y-3 pt-2">
             <button
               onClick={() => navigate('/admin')}
               className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Go to Admin Studio</span>
+              <span>Go to Admin Dashboard</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
@@ -90,10 +92,13 @@ export const AdminLoginPage: React.FC = () => {
       setErrorMessage('Please enter both email and password.');
       return;
     }
+
     setIsLoading(true);
     setErrorMessage(null);
+
     const res = await loginAdminWithFirebase(email, password);
     setIsLoading(false);
+
     if (res.success) {
       navigate('/admin');
     } else {
@@ -117,6 +122,7 @@ export const AdminLoginPage: React.FC = () => {
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4 bg-[#FFFDF9]">
       <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border-2 border-amber-300 shadow-2xl space-y-6">
+        {/* Header with Logo */}
         <div className="text-center space-y-3">
           <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-amber-400 bg-amber-50 shadow-md mx-auto flex items-center justify-center">
             <img
@@ -130,31 +136,16 @@ export const AdminLoginPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-[#1E1915]">
-              SK Pizza Point — Admin Login
+              SK Pizza Point — Admin Sign In
             </h1>
             <p className="text-xs text-[#6B5B4F] mt-1">
-              SK Pizza Point Kitchen Partner & Store Manager Console
+              Kitchen Partner & Store Manager Console
             </p>
           </div>
         </div>
 
+        {/* Tab switcher: Firebase Email Login (Primary) vs Passcode PIN */}
         <div className="flex rounded-2xl bg-amber-100/70 p-1 border border-amber-200">
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode('passcode');
-              setErrorMessage(null);
-            }}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              loginMode === 'passcode'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-amber-900 hover:bg-amber-200/50'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>Quick Passcode PIN</span>
-          </button>
-
           <button
             type="button"
             onClick={() => {
@@ -168,7 +159,23 @@ export const AdminLoginPage: React.FC = () => {
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>Firebase Email</span>
+            <span>Email Sign In</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMode('passcode');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              loginMode === 'passcode'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-amber-900 hover:bg-amber-200/50'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Passcode PIN</span>
           </button>
         </div>
 
@@ -187,6 +194,7 @@ export const AdminLoginPage: React.FC = () => {
         )}
 
         {loginMode === 'passcode' ? (
+          /* FAST PASSCODE PIN LOGIN */
           <form onSubmit={handlePasscodeLogin} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
@@ -217,15 +225,17 @@ export const AdminLoginPage: React.FC = () => {
                 Default APK Passcode: <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-bold">admin123</code>
               </p>
             </div>
+
             <button
               type="submit"
               className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Open Admin Studio</span>
+              <span>Enter Admin Dashboard</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
         ) : (
+          /* FIREBASE ACCOUNT LOGIN */
           <form onSubmit={handleFirebaseLogin} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
@@ -247,6 +257,7 @@ export const AdminLoginPage: React.FC = () => {
                 />
               </div>
             </div>
+
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
@@ -284,6 +295,7 @@ export const AdminLoginPage: React.FC = () => {
                 </button>
               </div>
             </div>
+
             <button
               type="submit"
               disabled={isLoading}
@@ -304,6 +316,7 @@ export const AdminLoginPage: React.FC = () => {
           </form>
         )}
 
+        {/* Security Notice */}
         <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-[#6B5B4F] space-y-1">
           <p className="font-bold text-[#1E1915] flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -314,6 +327,7 @@ export const AdminLoginPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Footer */}
         <div className="pt-4 border-t border-amber-100 flex items-center justify-between text-xs text-[#6B5B4F]">
           <button
             onClick={() => navigate('/')}

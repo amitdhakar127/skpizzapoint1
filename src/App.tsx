@@ -24,6 +24,7 @@ import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
 import { GlobalSirenAlertBanner } from './components/GlobalSirenAlertBanner';
 import { AdminPage } from './pages/AdminPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const { currentPath } = useApp();
@@ -96,11 +97,13 @@ const AppContent: React.FC = () => {
 
   if (isAdminRoute || isAdminLoginRoute) {
     return (
-      <div className="min-h-screen bg-[#FDFBF7] text-[#1E1915]">
-        <GlobalSirenAlertBanner />
-        {renderCurrentPage()}
-        <ToastContainer />
-      </div>
+      <ErrorBoundary fallbackTitle="Admin Section Safe Mode" fallbackMessage="Admin panel view protected. Your orders and menu settings are securely saved.">
+        <div className="min-h-screen bg-[#FDFBF7] text-[#1E1915]">
+          <GlobalSirenAlertBanner />
+          {renderCurrentPage()}
+          <ToastContainer />
+        </div>
+      </ErrorBoundary>
     );
   }
 
@@ -112,9 +115,11 @@ const AppContent: React.FC = () => {
       {/* Top navigation header */}
       <Header />
 
-      {/* Main page view */}
+      {/* Main page view protected by ErrorBoundary */}
       <main className="flex-1 pb-16">
-        {renderCurrentPage()}
+        <ErrorBoundary fallbackTitle="Page Content Safe Mode" fallbackMessage="The page layout and navigation remain fully intact. Your session and orders are safe.">
+          {renderCurrentPage()}
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}
@@ -132,8 +137,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ErrorBoundary isRoot={true} fallbackTitle="SK Pizza Point Safe Mode" fallbackMessage="Website protected by resilient error boundary. Your data and layout remain active.">
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

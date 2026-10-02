@@ -257,24 +257,29 @@ export const CheckoutPage: React.FC = () => {
             </div>
 
             {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
               <button
-                onClick={() => {
-                  setCompletedOrder(null);
-                  setActiveOrder(null);
-                  navigate('/menu');
-                }}
-                className="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-sm transition-colors text-center"
+                onClick={() => navigate(`/track-${completedOrder.id}`)}
+                className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-colors text-center shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
-                Order More Food
+                <Compass className="w-4 h-4 animate-spin-slow" />
+                <span>Track This Order Live</span>
               </button>
 
               <button
-                onClick={() => navigate('/')}
-                className="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-[#1E1915] font-semibold text-sm transition-colors text-center"
+                onClick={() => navigate('/my-orders')}
+                className="py-3 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
-                Return to Homepage
+                <span>View All My Orders</span>
               </button>
+
+              <a
+                href={`tel:${settings.whatsAppNumber || '+919617142439'}`}
+                className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Call Kitchen</span>
+              </a>
             </div>
           </div>
         </div>
@@ -359,10 +364,22 @@ export const CheckoutPage: React.FC = () => {
 
       setCompletedOrder(newOrder);
 
-      // Open WhatsApp with prefilled message
+      // Open WhatsApp automatically with prefilled message
       const whatsAppUrl = generateWhatsAppUrl(newOrder);
-      window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
       setWhatsAppOpened(true);
+      try {
+        const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+          window.location.href = whatsAppUrl;
+        } else {
+          const win = window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
+          if (!win || win.closed || typeof win.closed === 'undefined') {
+            window.location.href = whatsAppUrl;
+          }
+        }
+      } catch {
+        window.location.href = whatsAppUrl;
+      }
     } catch {
       showToast('Failed to create order. Please check details.', 'error');
     } finally {

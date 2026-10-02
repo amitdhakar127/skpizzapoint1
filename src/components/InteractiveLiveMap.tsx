@@ -216,8 +216,18 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
           }
 
           customerMarkerRef.current = marker;
+          if (mode === 'picker') {
+            try {
+              map.setView([lat, lon], 16);
+            } catch {}
+          }
         } else {
           customerMarkerRef.current.setLatLng([lat, lon]);
+          if (mode === 'picker') {
+            try {
+              map.panTo([lat, lon], { animate: true });
+            } catch {}
+          }
         }
 
         // Update route line between restaurant and customer
@@ -313,17 +323,18 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
 
   // Locate current device GPS
   const handleLocateMe = () => {
-    if (!('geolocation' in navigator)) {
-      alert('Geolocation is not supported by your browser.');
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
       return;
     }
     setIsLocatingDevice(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([latitude, longitude], 16);
-        }
+        try {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setView([latitude, longitude], 16);
+          }
+        } catch {}
         if (onLocationChange) {
           const address = await reverseGeocodeCoords(latitude, longitude);
           onLocationChange({
@@ -340,11 +351,17 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
       (err) => {
         console.warn('Geolocation error:', err);
         setIsLocatingDevice(false);
-        alert('Could not access device GPS. Please check location permissions.');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Auto-request live device location on mount in picker mode if location is not set yet
+  useEffect(() => {
+    if (mode === 'picker' && !customerLocation && typeof window !== 'undefined' && 'geolocation' in navigator) {
+      handleLocateMe();
+    }
+  }, [mode]);
 
   // Search address query
   const handleSearchSubmit = async (e: React.FormEvent) => {
@@ -434,7 +451,7 @@ const InteractiveLiveMapInternal: React.FC<InteractiveLiveMapProps> = ({
             className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95"
           >
             <Navigation className="w-4 h-4" />
-            <span>Open in Google Maps Navigation (रास्ता देखें)</span>
+            <span>Open in Google Maps Navigation</span>
           </a>
         )}
       </div>

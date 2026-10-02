@@ -11,12 +11,12 @@ export interface LocationSearchResult {
   lon: number;
 }
 
-// Default Restaurant Coordinates (SK Pizza Point)
+// Default Restaurant Coordinates (SK Pizza Point - Badagoan Rd, Khureiri, Gwalior, Madhya Pradesh)
 export const RESTAURANT_COORDINATES = {
   name: 'SK Pizza Point',
-  latitude: 28.6139,
-  longitude: 77.2090,
-  address: 'Main Market, Food Street, Near City Center',
+  latitude: 26.2155,
+  longitude: 78.2218,
+  address: 'Badagoan Rd, Khureiri, Gwalior, Madhya Pradesh 474006',
 };
 
 // Haversine formula to compute distance in km
@@ -248,20 +248,32 @@ export async function acquireLiveLocation(
   }
 
   // Attempt 3: IP Location Fallback
-  onProgress?.('Using network area location...');
+  onProgress?.('Checking location...');
   const ipLoc = await getIpLocationFallback();
   if (ipLoc) {
-    return {
-      location: ipLoc,
-      source: 'ip',
-      error: 'GPS permission was blocked or unavailable. Detected approximate network location.',
-    };
+    // Check distance: if IP location is hundreds of kilometers away (e.g. Delhi ISP gateway),
+    // do not force a wrong city on the customer.
+    const distFromRest = calculateDistanceKm(
+      RESTAURANT_COORDINATES.latitude,
+      RESTAURANT_COORDINATES.longitude,
+      ipLoc.latitude,
+      ipLoc.longitude
+    );
+
+    // If within reasonable area (<80km), accept network location
+    if (distFromRest < 80) {
+      return {
+        location: ipLoc,
+        source: 'ip',
+        error: 'Approximate network location detected. Please drag pin to your exact building.',
+      };
+    }
   }
 
-  // Return default restaurant area if completely unavailable
+  // Return default restaurant area if GPS unavailable
   return {
     location: null,
     source: 'manual',
-    error: 'Location permission was denied or unavailable. Please pin your location on the map below.',
+    error: 'Please tap "GPS Pin" or click on the map to set your delivery doorstep.',
   };
 }

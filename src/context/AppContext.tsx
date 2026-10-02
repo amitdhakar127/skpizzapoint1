@@ -134,6 +134,8 @@ interface AppContextType {
   activeOrder: Order | null;
   setActiveOrder: (order: Order | null) => void;
   generateWhatsAppUrl: (order: Order) => string;
+  generateCustomerStatusWhatsAppUrl: (order: Order, status: OrderStatus) => string;
+  seedDemoOrders: () => Promise<void>;
 
   // Real-time Sound Alerts & Notifications
   isSoundMuted: boolean;
@@ -253,7 +255,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Firebase Auth State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('sk_pizza_user_profile') : null;
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
   // Passcode Admin Session (Allows instant APK / Mobile access with restaurant passcode)
@@ -296,12 +305,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const o1: Order[] = saved ? JSON.parse(saved) : [];
       const o2: Order[] = savedMy ? JSON.parse(savedMy) : [];
       const mergedMap = new Map<string, Order>();
-      [...o1, ...o2].forEach((o) => { if (o && o.id) mergedMap.set(o.id, o); });
+      // Guarantee rich initial orders are present if local storage is blank
+      const seedList = (o1.length === 0 && o2.length === 0) ? INITIAL_ORDERS : [];
+      [...seedList, ...o1, ...o2].forEach((o) => { if (o && o.id) mergedMap.set(o.id, o); });
       return Array.from(mergedMap.values()).sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } catch {
-      return [];
+      return INITIAL_ORDERS;
     }
   });
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
@@ -414,18 +425,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Real-time listener for User Profile in Firebase RTDB users/{uid}
         const userRef = ref(rtdb, `users/${user.uid}`);
         unsubUserProfile = onValue(userRef, (snapshot) => {
+          let prof: UserProfile;
           if (snapshot.exists()) {
-            setUserProfile(snapshot.val());
+            prof = snapshot.val();
           } else {
-            const initialProfile: UserProfile = {
+            prof = {
               uid: user.uid,
               email: user.email || '',
               displayName: user.displayName || user.email?.split('@')[0] || 'Customer',
               createdAt: new Date().toISOString(),
             };
-            set(userRef, initialProfile).catch(() => {});
-            setUserProfile(initialProfile);
+            set(userRef, prof).catch(() => {});
           }
+          setUserProfile(prof);
+          try {
+            localStorage.setItem('sk_pizza_user_profile', JSON.stringify(prof));
+            localStorage.setItem(
+              'sk_pizza_cached_auth',
+              JSON.stringify({
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+              })
+            );
+          } catch {}
         });
 
         // Real-time listener for Customer's specific Orders in userOrders/{uid}
@@ -590,6 +613,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       });
+
+      // If empty, guarantee initial demo orders so admin can manage orders immediately
+      if (mergedMap.size === 0) {
+        INITIAL_ORDERS.forEach((io) => mergedMap.set(io.id, io));
+        try {
+          const initMap: Record<string, Order> = {};
+          INITIAL_ORDERS.forEach((io) => {
+            initMap[io.id] = io;
+          });
+          set(ordersRef, initMap).catch(() => {});
+        } catch {}
+      }
 
       const sorted = Array.from(mergedMap.values()).sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -772,6 +807,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await set(ref(rtdb, `users/${user.uid}`), profile);
         setUserProfile(profile);
 
+        // Dual storage: LocalStorage + Firebase RTDB
+        try {
+          localStorage.setItem('sk_pizza_user_profile', JSON.stringify(profile));
+          localStorage.setItem(
+            'sk_pizza_cached_auth',
+            JSON.stringify({
+              uid: user.uid,
+              email: user.email,
+              displayName: profile.displayName,
+            })
+          );
+        } catch {}
+
         showToast(`Welcome, ${profile.displayName}! Account created.`, 'success');
         return { success: true };
       } catch (err: unknown) {
@@ -886,11 +934,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!currentUser) return false;
       try {
         await update(ref(rtdb, `users/${currentUser.uid}`), data);
-        setUserProfile((prev) => (prev ? { ...prev, ...data } : { uid: currentUser.uid, email: currentUser.email || '', ...data }));
+        const updated = (prev: UserProfile | null) => (prev ? { ...prev, ...data } : { uid: currentUser.uid, email: currentUser.email || '', ...data });
+        setUserProfile((prev) => {
+          const next = updated(prev);
+          try {
+            localStorage.setItem('sk_pizza_user_profile', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
         if (data.displayName && auth.currentUser) {
           await updateProfile(auth.currentUser, { displayName: data.displayName }).catch(() => {});
         }
-        showToast('Profile details saved to Firebase cloud!', 'success');
+        showToast('Profile details saved to cloud and local storage!', 'success');
         return true;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Could not save profile';
@@ -1062,6 +1117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           productId: cartItem.productId,
           productName: cartItem.productName,
           category: cartItem.category,
+          imageUrl: cartItem.imageUrl || prod?.imageUrl,
           size: cartItem.selectedSize,
           quantity: cartItem.quantity,
           unitPrice: verifiedUnitPrice,
@@ -1343,7 +1399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const testOrderAlertSound = useCallback(() => {
     soundAlerts.testAlarm();
-    showToast('🚨 सायरन टेस्ट शुरू! (Testing Continuous Loud Siren & Vibration)', 'info');
+    showToast('🚨 Siren Test Started! (Continuous Loud Siren & Vibration)', 'info');
   }, [showToast]);
 
   const dismissOrderAlert = useCallback(() => {
@@ -1374,17 +1430,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const addressSection =
         order.orderType === 'delivery' && order.deliveryAddress
-          ? `\n📍 *डिलीवरी पता (Delivery Address):* ${order.deliveryAddress}${order.city ? ', ' + order.city : ''}${order.pinCode ? ' - ' + order.pinCode : ''}`
+          ? `\n📍 *Delivery Address:* ${order.deliveryAddress}${order.city ? ', ' + order.city : ''}${order.pinCode ? ' - ' + order.pinCode : ''}`
           : '';
 
       const locationSection =
         order.customerLocation?.latitude && order.customerLocation?.longitude
-          ? `\n📍 *ग्राहक की करंट लोकेशन (Live GPS Link):* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Coordinates: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
+          ? `\n📍 *Live GPS Link:* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Coordinates: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
           : '';
 
       const trackerSection =
         typeof window !== 'undefined'
-          ? `\n🗺️ *लाइव ट्रैकर लिंक (Live Order & Rider Tracking):* ${window.location.origin}/#track-${order.id}`
+          ? `\n🗺️ *Live Order & Rider Tracking Link:* ${window.location.origin}/#track-${order.id}`
           : '';
 
       const instructionsSection = order.instructions ? `\nInstructions: ${order.instructions}` : '';
@@ -1411,6 +1467,71 @@ _Please confirm this order and its preparation status._`;
     },
     [settings.whatsAppNumber, settings.deliveryFeeNote]
   );
+
+  // Generate 1-click status update WhatsApp notification for the customer
+  const generateCustomerStatusWhatsAppUrl = useCallback(
+    (order: Order, newStatus: OrderStatus): string => {
+      let statusMsg = '';
+      const orderId = order.id;
+      const customerName = order.customerName || 'Valued Customer';
+      const origin =
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : 'https://sk-pizza-point.web.app';
+      const trackLink = `${origin}/#track-${orderId}`;
+
+      if (newStatus === 'Preparing') {
+        statusMsg = `Namaste ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n📍 Live Order Tracking: ${trackLink}\n\nExpected ready time: ~15-20 minutes!`;
+      } else if (newStatus === 'Out for delivery') {
+        statusMsg = `Namaste ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your pinned address.\n\n🗺️ Live GPS Tracking: ${trackLink}\n\nPlease keep your phone nearby!`;
+      } else if (newStatus === 'Delivered') {
+        statusMsg = `Namaste ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n\nHave a great meal! 🍕❤️`;
+      } else if (newStatus === 'Cancelled') {
+        statusMsg = `Namaste ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.`;
+      } else {
+        statusMsg = `Namaste ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}`;
+      }
+
+      const cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');
+      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(statusMsg)}`;
+    },
+    [settings.whatsAppNumber]
+  );
+
+  // Seed / Reload active demo orders into kitchen manager
+  const seedDemoOrders = useCallback(async () => {
+    const now = Date.now();
+    const freshOrders: Order[] = INITIAL_ORDERS.map((o, idx) => ({
+      ...o,
+      id: `SKP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100000 + Math.random() * 900000)}`,
+      createdAt: new Date(now - (idx + 1) * 15 * 60000).toISOString(),
+      updatedAt: new Date(now - idx * 10 * 60000).toISOString(),
+    }));
+
+    setOrders((prev) => {
+      const merged = new Map<string, Order>();
+      prev.forEach((o) => merged.set(o.id, o));
+      freshOrders.forEach((o) => merged.set(o.id, o));
+      const sorted = Array.from(merged.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      try {
+        localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
+      } catch {}
+      return sorted;
+    });
+
+    try {
+      const initMap: Record<string, Order> = {};
+      freshOrders.forEach((fo) => {
+        initMap[fo.id] = fo;
+      });
+      await update(ref(rtdb, 'orders'), initMap);
+      showToast('Loaded active demo orders into kitchen manager!', 'success');
+    } catch {
+      showToast('Saved active demo orders to local device storage!', 'info');
+    }
+  }, [showToast]);
 
   // Products Cloud CRUD
   const addProduct = useCallback(
@@ -1807,6 +1928,8 @@ _Please confirm this order and its preparation status._`;
         activeOrder,
         setActiveOrder,
         generateWhatsAppUrl,
+        generateCustomerStatusWhatsAppUrl,
+        seedDemoOrders,
         isSoundMuted,
         toggleSoundMute,
         testOrderAlertSound,

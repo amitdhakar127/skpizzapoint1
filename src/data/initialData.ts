@@ -1,4 +1,4 @@
-import { Product, RestaurantSettings, GalleryItem, VideoItem, Review, AddOn } from '../types';
+import { Product, RestaurantSettings, GalleryItem, VideoItem, Review, AddOn, Order } from '../types';
 
 export const INITIAL_ADDONS: AddOn[] = [
   { id: 'addon-1', name: 'Extra Mozzarella Cheese', price: 30 },

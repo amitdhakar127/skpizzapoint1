@@ -66,6 +66,9 @@ const AdminPageInternal: React.FC = () => {
     updateOrderPaymentStatus,
     updateOrderLocation,
     deleteOrder,
+    generateWhatsAppUrl,
+    generateCustomerStatusWhatsAppUrl,
+    seedDemoOrders,
     isSoundMuted,
     toggleSoundMute,
     testOrderAlertSound,
@@ -278,9 +281,10 @@ const AdminPageInternal: React.FC = () => {
 
   // Metrics for dashboard
   const totalOrders = orders.length;
-  const newOrders = orders.filter((o) => o.status === 'Awaiting WhatsApp submission').length;
-  const confirmedOrders = orders.filter((o) => o.status === 'Confirmed by restaurant').length;
-  const completedOrders = orders.filter((o) => o.status === 'Completed').length;
+  const newOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('pending')).length;
+  const preparingOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('prep')).length;
+  const outForDeliveryOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('out')).length;
+  const completedOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('deliver')).length;
   const outOfStockCount = products.filter((p) => !p.isAvailable).length;
 
   const handleCreateProduct = (e: React.FormEvent) => {
@@ -467,11 +471,11 @@ const AdminPageInternal: React.FC = () => {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-black text-sm sm:text-base tracking-tight text-white leading-tight">
-                एसके पिज़्ज़ा पॉइंट <span className="text-amber-400 text-xs font-bold font-sans">({settings.restaurantName})</span>
+                SK Pizza Point <span className="text-amber-400 text-xs font-bold font-sans">({settings.restaurantName})</span>
               </h1>
               <span className="hidden md:inline-flex px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider items-center gap-1 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                किचन पार्टनर ऐप (Live)
+                Kitchen Partner Live
               </span>
             </div>
             <p className="text-[10px] text-neutral-400 font-mono flex items-center gap-1">
@@ -494,17 +498,17 @@ const AdminPageInternal: React.FC = () => {
               title="Stop repeating order siren immediately"
             >
               <VolumeX className="w-3.5 h-3.5" />
-              <span>🛑 सायरन बंद करें (STOP ALARM)</span>
+              <span>🛑 STOP ALARM</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => testOrderAlertSound()}
               className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
-              title="Test Loud Repeating Order Siren (सायरन टेस्ट करें)"
+              title="Test Loud Repeating Order Siren"
             >
               <BellRing className="w-3.5 h-3.5 text-slate-950" />
-              <span>🚨 सायरन टेस्ट</span>
+              <span>🚨 Test Siren</span>
             </button>
           )}
 
@@ -654,7 +658,7 @@ const AdminPageInternal: React.FC = () => {
 
                 <div className="p-5 rounded-3xl bg-white border border-amber-200 shadow-sm space-y-1">
                   <span className="text-xs font-bold text-emerald-700 uppercase">Confirmed / Preparing</span>
-                  <p className="text-3xl font-black text-emerald-600">{confirmedOrders}</p>
+                  <p className="text-3xl font-black text-emerald-600">{preparingOrders}</p>
                 </div>
 
                 <div className="p-5 rounded-3xl bg-white border border-amber-200 shadow-sm space-y-1">
@@ -859,7 +863,17 @@ const AdminPageInternal: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => seedDemoOrders()}
+                    className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 font-black text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Load active sample orders (Pending, Preparing, Out for delivery)"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-amber-800" />
+                    <span>Load Active Demo Orders</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => testOrderAlertSound()}
@@ -867,6 +881,31 @@ const AdminPageInternal: React.FC = () => {
                   >
                     <Volume2 className="w-3.5 h-3.5" />
                     <span>Test Voice Alert</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const granted = await soundAlerts.requestNotificationPermission();
+                      if (granted) {
+                        showToast('Background & Screen-off order notifications enabled!', 'success');
+                      } else {
+                        showToast('Notifications are blocked or not allowed in your browser settings.', 'error');
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                      typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+                        ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white font-black animate-pulse'
+                    }`}
+                    title="Enable background and screen-off order alert notifications"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>
+                      {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+                        ? 'Background Alerts: On'
+                        : 'Enable Screen-Off Alarms'}
+                    </span>
                   </button>
 
                   <button
@@ -920,7 +959,7 @@ const AdminPageInternal: React.FC = () => {
                     }`}
                   >
                     <TableIcon className="w-3.5 h-3.5" />
-                    <span>Sheet View (शीट)</span>
+                    <span>Sheet View</span>
                   </button>
                   <button
                     type="button"
@@ -938,12 +977,22 @@ const AdminPageInternal: React.FC = () => {
               </div>
 
               {orders.length === 0 ? (
-                <div className="p-12 bg-white rounded-3xl border border-amber-200 text-center space-y-2">
+                <div className="p-12 bg-white rounded-3xl border border-amber-200 text-center space-y-4">
                   <ShoppingBag className="w-12 h-12 text-neutral-300 mx-auto" />
-                  <h3 className="font-extrabold text-base text-[#1E1915]">No orders received yet</h3>
-                  <p className="text-xs text-[#6B5B4F]">
-                    Customer orders generated via the website or WhatsApp will appear here automatically with loud voice alerts.
-                  </p>
+                  <div className="space-y-1">
+                    <h3 className="font-extrabold text-base text-[#1E1915]">No orders received yet</h3>
+                    <p className="text-xs text-[#6B5B4F]">
+                      Customer orders generated via the website or WhatsApp will appear here automatically with loud voice alerts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => seedDemoOrders()}
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Load Active Sample Orders</span>
+                  </button>
                 </div>
               ) : ordersViewMode === 'sheet' ? (
                 /* SHEET / TABLE VIEW (जैसे Excel / Zomato Kitchen Sheet) */
@@ -1204,22 +1253,53 @@ const AdminPageInternal: React.FC = () => {
                             </div>
 
                             {/* Items & Payment snapshot */}
-                            <div className="space-y-2 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+                            <div className="space-y-3 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
                               <h4 className="font-extrabold text-sm text-[#1E1915]">Items Breakdown:</h4>
-                              <div className="divide-y divide-amber-100 space-y-1">
-                                {order.items.map((item, idx) => (
-                                  <div key={idx} className="pt-1 first:pt-0 flex justify-between">
-                                    <span>
-                                      • {item.productName} ({item.size} × {item.quantity})
-                                      {item.addOns.length > 0 && (
-                                        <span className="text-[10px] text-amber-700 block">
-                                          + {item.addOns.join(', ')}
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className="font-bold text-[#1E1915]">₹{item.totalPrice}</span>
-                                  </div>
-                                ))}
+                              <div className="divide-y divide-amber-100 space-y-2">
+                                {order.items.map((item, idx) => {
+                                  const prodImg =
+                                    item.imageUrl ||
+                                    products.find((p) => p.id === item.productId)?.imageUrl ||
+                                    'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=400&q=80';
+
+                                  return (
+                                    <div key={idx} className="pt-2 first:pt-0 flex items-center gap-3">
+                                      <img
+                                        src={prodImg}
+                                        alt={item.productName}
+                                        className="w-12 h-12 rounded-xl object-cover bg-amber-100 border border-amber-200 shrink-0 shadow-xs"
+                                        onError={(e) => {
+                                          (e.target as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-extrabold text-[#1E1915] text-xs truncate">
+                                            {item.productName}
+                                          </span>
+                                          {item.category && (
+                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-200/80 text-amber-900 shrink-0">
+                                              {item.category}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-[11px] text-[#55473E] mt-0.5">
+                                          <span className="font-bold">{item.size}</span> ×{' '}
+                                          <span className="font-black text-amber-900">{item.quantity}</span>{' '}
+                                          <span className="text-neutral-400">(@ ₹{item.unitPrice})</span>
+                                        </div>
+                                        {item.addOns && item.addOns.length > 0 && (
+                                          <div className="text-[10px] text-amber-800 font-medium truncate">
+                                            + {item.addOns.join(', ')}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <span className="font-black text-sm text-[#1E1915]">₹{item.totalPrice}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
 
                               <div className="pt-2 border-t border-amber-200/80 space-y-1 text-[11px]">
@@ -1238,6 +1318,101 @@ const AdminPageInternal: React.FC = () => {
                                   <span className="text-base text-amber-900">{formatPrice(order.finalTotal)}</span>
                                 </div>
                               </div>
+                            </div>
+                          </div>
+
+                          {/* Kitchen Status Pipeline & Direct WhatsApp Notification Bar */}
+                          <div className="p-4 rounded-2xl bg-amber-100/60 border-2 border-amber-300 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <h5 className="font-black text-xs uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                                  <span>👨‍🍳 Kitchen Workflow & Live Customer Update:</span>
+                                </h5>
+                                <p className="text-[11px] text-[#55473E]">
+                                  Select status and click WhatsApp to notify customer instantly with live tracking link.
+                                </p>
+                              </div>
+
+                              <a
+                                href={generateCustomerStatusWhatsAppUrl(order, order.status)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3.5 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-black text-xs shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer self-start sm:self-auto shrink-0"
+                                title="Notify customer on WhatsApp about current order status"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                                <span>WhatsApp Status: {order.status}</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => updateOrderStatus(order.id, 'Pending')}
+                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                                  order.status === 'Pending'
+                                    ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-2 ring-amber-400'
+                                    : 'bg-white hover:bg-amber-50 text-[#55473E] border border-amber-200'
+                                }`}
+                              >
+                                <span className="text-sm">📝</span>
+                                <span className="text-[11px]">1. New Pending</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateOrderStatus(order.id, 'Preparing');
+                                  const url = generateCustomerStatusWhatsAppUrl(order, 'Preparing');
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                                  order.status === 'Preparing'
+                                    ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-2 ring-amber-400'
+                                    : 'bg-white hover:bg-amber-50 text-[#55473E] border border-amber-200'
+                                }`}
+                                title="Set Preparing & notify customer on WhatsApp that pizza is baking"
+                              >
+                                <span className="text-sm">🍕</span>
+                                <span className="text-[11px]">2. Baking in Oven</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateOrderStatus(order.id, 'Out for delivery');
+                                  const url = generateCustomerStatusWhatsAppUrl(order, 'Out for delivery');
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                                  order.status === 'Out for delivery'
+                                    ? 'bg-blue-600 text-white font-black shadow-sm ring-2 ring-blue-400'
+                                    : 'bg-white hover:bg-blue-50 text-[#55473E] border border-blue-200'
+                                }`}
+                                title="Set Out for Delivery & send live GPS tracking link to customer"
+                              >
+                                <span className="text-sm">🛵</span>
+                                <span className="text-[11px]">3. Out for Delivery</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateOrderStatus(order.id, 'Delivered');
+                                  const url = generateCustomerStatusWhatsAppUrl(order, 'Delivered');
+                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                                  order.status === 'Delivered'
+                                    ? 'bg-emerald-600 text-white font-black shadow-sm ring-2 ring-emerald-400'
+                                    : 'bg-white hover:bg-emerald-50 text-[#55473E] border border-emerald-200'
+                                }`}
+                                title="Set Delivered & send thank you message to customer"
+                              >
+                                <span className="text-sm">✅</span>
+                                <span className="text-[11px]">4. Delivered & Done</span>
+                              </button>
                             </div>
                           </div>
 
@@ -1280,29 +1455,29 @@ const AdminPageInternal: React.FC = () => {
                 <div className="flex flex-wrap gap-2 text-xs">
                   {[
                     {
-                      title: '🍕 आज 20% की छूट! SK Pizza Point Special',
-                      message: 'हमारे सभी मीडियम और लार्ज चीज़ बर्स्ट पिज़्ज़ा पर आज 20% का डिस्काउंट! अभी ऑर्डर करें।',
+                      title: '🍕 20% OFF Today! SK Pizza Point Special',
+                      message: 'Enjoy 20% discount on all Medium and Large Cheese Burst Pizzas today! Order hot now.',
                       type: 'offer' as const,
                       badge: '20% OFF',
                       link: '/menu',
                     },
                     {
-                      title: '🌧️ बारिश सूचना: डिलीवरी 10-15 मिनट लेट हो सकती है',
-                      message: 'मौसम के कारण हमारे राइडर सुरक्षित रूप से आप तक पहुंच रहे हैं। गरम खाना जल्द पहुंचेगा!',
+                      title: '🌧️ Weather Alert: Delivery may take 10-15 mins extra',
+                      message: 'Due to rainy weather, our riders are driving safely. Your hot food is on its way!',
                       type: 'urgent' as const,
                       badge: 'WEATHER ALERT',
                       link: '/contact',
                     },
                     {
-                      title: '🔥 गरमा-गरम ताज़ा चीज़ बर्स्ट पिज़्ज़ा तैयार!',
-                      message: 'किचन में ताज़ा मोज़ेरेला चीज़ बर्स्ट पिज़्ज़ा तैयार हो रहे हैं। तुरंत ऑर्डर करें।',
+                      title: '🔥 Fresh Mozzarella Cheese Burst Pizzas Ready!',
+                      message: 'Freshly baked cheese burst pizzas are ready in the oven. Order now for lightning-fast delivery!',
                       type: 'offer' as const,
                       badge: 'HOT FRESH',
                       link: '/menu',
                     },
                     {
-                      title: '⚡ फ्री डिलीवरी: ₹299 से ऊपर के ऑर्डर पर',
-                      message: 'सीमित समय के लिए ₹299 से ऊपर के सभी होम डिलीवरी ऑर्डर पर डिलीवरी चार्ज एकदम मुफ़्त!',
+                      title: '⚡ Free Delivery on orders above ₹299!',
+                      message: 'For a limited time, get 100% Free Home Delivery on all orders above ₹299!',
                       type: 'offer' as const,
                       badge: 'FREE DELIVERY',
                       link: '/menu',
@@ -1345,7 +1520,7 @@ const AdminPageInternal: React.FC = () => {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. 🍕 आज 20% की छूट! SK Pizza Point Special"
+                      placeholder="e.g. 🍕 20% OFF Today! SK Pizza Special"
                       value={newBroadcastTitle}
                       onChange={(e) => setNewBroadcastTitle(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl border border-amber-200 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none"
@@ -1416,7 +1591,7 @@ const AdminPageInternal: React.FC = () => {
                     className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
                   >
                     <Send className="w-4 h-4" />
-                    <span>🚀 Push Screen Alert to All Users (सभी पर स्क्रीन अलर्ट भेजें)</span>
+                    <span>🚀 Push Screen Alert to All Customers</span>
                   </button>
                 </div>
               </form>
@@ -2491,13 +2666,13 @@ const AdminPageInternal: React.FC = () => {
 
             <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs text-[#55473E] space-y-2">
               <p>
-                Kya aap waqai is item ko delete karna chahte hain?
+                Are you sure you want to permanently delete this item?
               </p>
               <div className="p-2 rounded-xl bg-white border border-amber-200 font-extrabold text-[#1E1915] text-sm break-all">
                 {deleteConfirmTarget.name}
               </div>
               <p className="text-[11px] text-rose-700">
-                ⚠️ Confirm karte hi ye Firebase Realtime Database aur aapki live website se turant hamesha ke liye delete ho jayega.
+                ⚠️ Confirming will immediately remove this item from your live cloud database and customer website.
               </p>
             </div>
 
@@ -2508,7 +2683,7 @@ const AdminPageInternal: React.FC = () => {
                 onClick={() => setDeleteConfirmTarget(null)}
                 className="px-4 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-[#1E1915] font-bold text-xs transition-colors cursor-pointer"
               >
-                Cancel / Radd Karein
+                Cancel
               </button>
               <button
                 type="button"
@@ -2523,7 +2698,7 @@ const AdminPageInternal: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 5. Mobile Native App Bottom Navigation Bar (Android Partner App Layout - नीचे टाइटल/नेविगेशन बार) */}
+      {/* 5. Mobile Native App Bottom Navigation Bar (Partner App Layout) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#16120E] border-t-2 border-amber-500/40 px-2 py-1.5 flex items-center justify-around md:hidden shadow-2xl backdrop-blur-md">
         <button
           type="button"
@@ -2533,7 +2708,7 @@ const AdminPageInternal: React.FC = () => {
           }`}
         >
           <ShoppingBag className={`w-5 h-5 ${activeTab === 'orders' ? 'text-amber-400 scale-110' : ''}`} />
-          <span className="text-[10px] font-bold">ऑर्डर ({orders.length})</span>
+          <span className="text-[10px] font-bold">Orders ({orders.length})</span>
           {pendingOrdersCount > 0 && (
             <span className="absolute -top-1 right-2 w-4 h-4 bg-red-600 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
               {pendingOrdersCount}
@@ -2549,7 +2724,7 @@ const AdminPageInternal: React.FC = () => {
           }`}
         >
           <Utensils className={`w-5 h-5 ${activeTab === 'products' ? 'text-amber-400 scale-110' : ''}`} />
-          <span className="text-[10px] font-bold">मेन्यू ({products.length})</span>
+          <span className="text-[10px] font-bold">Menu ({products.length})</span>
         </button>
 
         <button
@@ -2560,7 +2735,7 @@ const AdminPageInternal: React.FC = () => {
           }`}
         >
           <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 scale-110' : ''}`} />
-          <span className="text-[10px] font-bold">होम</span>
+          <span className="text-[10px] font-bold">Dashboard</span>
         </button>
 
         <button
@@ -2571,7 +2746,7 @@ const AdminPageInternal: React.FC = () => {
           }`}
         >
           <Bell className={`w-5 h-5 ${activeTab === 'broadcasts' ? 'text-amber-400 scale-110' : ''}`} />
-          <span className="text-[10px] font-bold">अलर्ट</span>
+          <span className="text-[10px] font-bold">Alerts</span>
         </button>
 
         <button
@@ -2584,7 +2759,7 @@ const AdminPageInternal: React.FC = () => {
           }`}
         >
           <MoreHorizontal className="w-5 h-5" />
-          <span className="text-[10px] font-bold">अन्य (More)</span>
+          <span className="text-[10px] font-bold">More</span>
         </button>
       </nav>
 
@@ -2594,7 +2769,7 @@ const AdminPageInternal: React.FC = () => {
           <div className="bg-[#1C1713] border-t-2 border-amber-400 rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <h3 className="font-black text-sm text-amber-400 uppercase tracking-wide">
-                Admin More Features (अन्य विकल्प)
+                Admin Features & More
               </h3>
               <button
                 type="button"

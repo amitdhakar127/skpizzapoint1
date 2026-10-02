@@ -288,6 +288,19 @@ class SoundAlertManager {
     this.playOrderChime();
     this.triggerVibration();
 
+    // Trigger OS-level notification & phone vibration for locked screens or background
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`🚨 NEW PIZZA ORDER #${order.id}!`, {
+          body: `Customer: ${order.customerName} | Bill: ₹${order.amount}\nTap to open Kitchen Console!`,
+          icon: 'https://i.imgur.com/KRI3jtw.jpeg',
+          badge: 'https://i.imgur.com/KRI3jtw.jpeg',
+          tag: `order-${order.id}`,
+          requireInteraction: true,
+        });
+      } catch {}
+    }
+
     this.addTrackedTimeout(() => {
       if (this.isAlarmActive) {
         this.speakOrderAlert(order.id, order.customerName, order.amount);
@@ -443,6 +456,21 @@ class SoundAlertManager {
 
   public getIsMuted(): boolean {
     return this.isMuted;
+  }
+
+  public async requestNotificationPermission(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    try {
+      const perm = await Notification.requestPermission();
+      return perm === 'granted';
+    } catch {
+      return false;
+    }
+  }
+
+  public getNotificationPermission(): NotificationPermission | 'unsupported' {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return Notification.permission;
   }
 }
 
