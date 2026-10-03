@@ -273,7 +273,7 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                     className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer self-start sm:self-auto"
                   >
                     <Navigation className="w-3.5 h-3.5" />
-                    <span>🚗 Open Google Maps Navigation (रास्ता देखें)</span>
+                    <span>🚗 Open Google Maps Navigation</span>
                   </a>
                 )}
               </div>

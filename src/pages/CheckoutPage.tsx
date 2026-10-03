@@ -23,7 +23,12 @@ import { useApp } from '../context/AppContext';
 import { Order, LiveLocation } from '../types';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
 import { InteractiveLiveMap } from '../components/InteractiveLiveMap';
-import { acquireLiveLocation } from '../lib/locationService';
+import {
+  acquireLiveLocation,
+  calculateDistanceKm,
+  estimateEtaMinutes,
+  RESTAURANT_COORDINATES,
+} from '../lib/locationService';
 
 export const CheckoutPage: React.FC = () => {
   const {
@@ -114,6 +119,13 @@ export const CheckoutPage: React.FC = () => {
       if (!pinCode && userProfile.pinCode) setPinCode(userProfile.pinCode);
     }
   }, [userProfile]);
+
+  // Automatically request customer live location when checkout opens for delivery
+  React.useEffect(() => {
+    if (orderType === 'delivery' && !customerLocation) {
+      requestCustomerLiveLocation();
+    }
+  }, [orderType]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(activeOrder);
@@ -319,22 +331,36 @@ export const CheckoutPage: React.FC = () => {
       showToast('Please enter a valid phone number (at least 8-10 digits)', 'error');
       return;
     }
-    if (orderType === 'delivery' && !deliveryAddress.trim() && !customerLocation) {
-      showToast('Please provide your complete delivery address or share GPS location', 'error');
-      return;
+
+    // Strict Enforcement: Live Location permission is mandatory for delivery orders
+    let loc = customerLocation;
+    if (orderType === 'delivery') {
+      if (!loc) {
+        // Attempt immediate GPS lock
+        loc = await requestCustomerLiveLocation();
+      }
+
+      if (!loc) {
+        showToast('Live GPS location permission is required for home delivery!', 'error');
+        setLocationError(
+          'Location permission required! Please tap the large "ALLOW LIVE GPS LOCATION" button below to verify your delivery doorstep.'
+        );
+        const el = document.getElementById('live-location-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      if (!deliveryAddress.trim() && loc.addressText) {
+        setDeliveryAddress(loc.addressText);
+      } else if (!deliveryAddress.trim()) {
+        showToast('Please enter your house/flat number or landmark', 'error');
+        return;
+      }
     }
 
     setIsSubmitting(true);
-
-    // If delivery and GPS not captured yet, prompt device for GPS coordinates
-    let loc = customerLocation;
-    if (orderType === 'delivery' && !loc && typeof window !== 'undefined' && 'geolocation' in navigator) {
-      try {
-        loc = await requestCustomerLiveLocation();
-      } catch {
-        // Continue if user cancels prompt
-      }
-    }
 
     try {
       const newOrder = await createOrder({
@@ -500,85 +526,138 @@ export const CheckoutPage: React.FC = () => {
             {orderType === 'delivery' && (
               <div className="space-y-4 pt-2 border-t border-amber-100 animate-fade-in">
                 {/* Live GPS Location Access & Interactive Map Card */}
-                <div className="p-4 rounded-3xl bg-amber-500/10 border-2 border-amber-300 space-y-3 shadow-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 uppercase tracking-wide">
-                        <Compass className="w-4 h-4 text-amber-600 animate-spin-slow" />
-                        <span>Share Live Delivery Location (सटीक लाइव लोकेशन)</span>
-                      </div>
-                      <p className="text-[11px] text-[#6B5B4F] leading-relaxed">
-                        Allow GPS permission or drag the pin on the map so our rider navigates straight to your doorstep!
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={isLocating}
-                      onClick={() => requestCustomerLiveLocation()}
-                      className={`px-3.5 py-2.5 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 ${
-                        customerLocation
-                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                      }`}
-                    >
-                      <RotateCw className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-                      <span>
-                        {isLocating
-                          ? locatingStatus || 'Locating...'
-                          : customerLocation
-                          ? '✓ GPS Locked (Refresh)'
-                          : '📍 Auto-Detect GPS Location'}
+                <div id="live-location-section" className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-300 space-y-4 shadow-sm">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 uppercase tracking-wide">
+                      <Compass className="w-4 h-4 text-amber-600 animate-spin-slow" />
+                      <span>Share Live Delivery Location (Real-time GPS)</span>
+                      <span className="text-[10px] text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full font-black">
+                        MANDATORY
                       </span>
-                    </button>
+                    </div>
+                    <p className="text-xs text-[#6B5B4F] leading-relaxed">
+                      Allow GPS permission so our delivery rider navigates directly to your exact doorstep without needing to call for directions.
+                    </p>
                   </div>
 
-                  {/* Location Status Chip */}
-                  {customerLocation && (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="font-bold">Location Pinned (±{customerLocation.accuracy || 15}m)</span>
-                        <span className="text-[10px] text-emerald-800 font-mono">
-                          [{customerLocation.latitude.toFixed(4)}, {customerLocation.longitude.toFixed(4)}]
-                        </span>
-                      </div>
-                      <a
-                        href={customerLocation.googleMapsLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 underline"
+                  {/* Prominent Large Permission Button when location is not yet locked */}
+                  {!customerLocation && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        id="btn-allow-live-gps-permission"
+                        disabled={isLocating}
+                        onClick={() => requestCustomerLiveLocation()}
+                        className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm sm:text-base shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3 transition-all transform active:scale-98 cursor-pointer ring-4 ring-amber-400/30"
                       >
-                        <span>View on Google Maps</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        <Navigation className={`w-5 h-5 ${isLocating ? 'animate-spin' : 'animate-bounce text-slate-950'}`} />
+                        <span>
+                          {isLocating
+                            ? locatingStatus || 'Connecting to Device GPS...'
+                            : '📍 ALLOW LIVE GPS LOCATION (REQUIRED FOR DELIVERY)'}
+                        </span>
+                      </button>
+                      <p className="text-[11px] text-center text-amber-900/80 font-medium">
+                        Tap &ldquo;Allow&rdquo; on your browser or device prompt to automatically set your pin.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Location Status Card when locked */}
+                  {customerLocation && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-emerald-200">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="font-black text-xs uppercase tracking-wide text-emerald-900 block">
+                              Live GPS Location Locked &amp; Verified
+                            </span>
+                            <span className="text-[11px] text-emerald-800">
+                              Accuracy ±{customerLocation.accuracy || 15}m • Coordinates [{customerLocation.latitude.toFixed(5)}, {customerLocation.longitude.toFixed(5)}]
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            disabled={isLocating}
+                            onClick={() => requestCustomerLiveLocation()}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-200 hover:bg-emerald-300 text-emerald-950 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <RotateCw className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
+                            <span>Re-detect</span>
+                          </button>
+                          <a
+                            href={customerLocation.googleMapsLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 text-xs font-bold transition-all inline-flex items-center gap-1"
+                          >
+                            <span>Google Maps</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Distance & ETA Live Badges */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-xl bg-white/80 border border-emerald-200">
+                          <span className="text-[10px] text-emerald-700 font-bold uppercase block">Distance from Kitchen</span>
+                          <span className="font-black text-emerald-950 text-sm">
+                            ~{calculateDistanceKm(
+                              RESTAURANT_COORDINATES.latitude,
+                              RESTAURANT_COORDINATES.longitude,
+                              customerLocation.latitude,
+                              customerLocation.longitude
+                            )} km
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-xl bg-white/80 border border-emerald-200">
+                          <span className="text-[10px] text-emerald-700 font-bold uppercase block">Estimated Delivery ETA</span>
+                          <span className="font-black text-emerald-950 text-sm">
+                            ~{estimateEtaMinutes(
+                              calculateDistanceKm(
+                                RESTAURANT_COORDINATES.latitude,
+                                RESTAURANT_COORDINATES.longitude,
+                                customerLocation.latitude,
+                                customerLocation.longitude
+                              )
+                            )} mins
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   {locationError && (
-                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span>💡 {locationError}</span>
+                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{locationError}</span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => requestCustomerLiveLocation()}
-                        className="text-xs font-bold underline text-amber-900 cursor-pointer self-start sm:self-auto"
+                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
                       >
-                        Retry GPS
+                        Retry Permission
                       </button>
                     </div>
                   )}
 
                   {/* Interactive Map Picker (Zomato / Swiggy style pin placement) */}
-                  <div className="space-y-1 pt-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#6B5B4F] flex items-center justify-between">
-                      <span>📍 Drag Pin or Click to Adjust Exact Building / Doorstep:</span>
-                      <span className="text-amber-800 font-bold">Interactive Map</span>
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-xs font-black uppercase tracking-wider text-[#6B5B4F] flex items-center justify-between">
+                      <span>📍 Verify or Adjust Exact Pin on Live Map:</span>
+                      <span className="text-amber-800 font-bold text-[11px]">Interactive Live Map</span>
                     </span>
                     <InteractiveLiveMap
                       mode="picker"
                       customerLocation={customerLocation}
                       onLocationChange={handleMapLocationPicked}
-                      height="240px"
+                      height="260px"
                     />
                   </div>
                 </div>
@@ -646,11 +725,23 @@ export const CheckoutPage: React.FC = () => {
 
             {/* Submit Button */}
             <div className="pt-4 border-t border-amber-100">
+              {orderType === 'delivery' && !customerLocation && (
+                <div className="mb-3.5 p-3 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs flex items-center gap-2.5 shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-extrabold text-amber-950">Live GPS Location Required</p>
+                    <p className="text-[11px] text-amber-800">
+                      Home delivery orders cannot be placed without your doorstep GPS coordinates. Please tap <strong>&ldquo;ALLOW LIVE GPS LOCATION&rdquo;</strong> above to continue.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
                 id="btn-submit-order-whatsapp"
                 disabled={isSubmitting}
-                className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl shadow-amber-500/25 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl shadow-amber-500/25 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
               >
                 <MessageCircle className="w-5 h-5 text-slate-950" />
                 <span>Confirm & Send on WhatsApp ({formatPrice(finalTotal)})</span>

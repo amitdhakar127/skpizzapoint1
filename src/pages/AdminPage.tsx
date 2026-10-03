@@ -37,15 +37,25 @@ import {
   MapPin as MapPinIcon,
   MoreHorizontal,
   BellRing,
+  Navigation,
+  RotateCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AdminLoginPage } from './AdminLoginPage';
 import { Product, OrderStatus, GalleryItem, VideoItem, PizzaSize, ProductCategory, AddOn, LiveLocation, Order } from '../types';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
+import { InteractiveLiveMap } from '../components/InteractiveLiveMap';
 import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { soundAlerts } from '../lib/soundAlerts';
+import {
+  acquireLiveLocation,
+  RESTAURANT_COORDINATES,
+  calculateDistanceKm,
+  getGoogleMapsPinUrl,
+  getGoogleMapsNavigationUrl,
+} from '../lib/locationService';
 
 const AdminPageInternal: React.FC = () => {
   const {
@@ -120,6 +130,59 @@ const AdminPageInternal: React.FC = () => {
     return soundAlerts.subscribeAlarm((ringing) => {
       setIsAlarmRinging(ringing);
     });
+  }, []);
+
+  // Admin Live Location State & Auto-Request on App/Website Open
+  const [adminLiveLoc, setAdminLiveLoc] = useState<LiveLocation | null>(() => {
+    try {
+      const saved = localStorage.getItem('sk_admin_live_location');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAdminLocating, setIsAdminLocating] = useState<boolean>(false);
+  const [adminLocStatus, setAdminLocStatus] = useState<string>('');
+  const [adminLocError, setAdminLocError] = useState<string | null>(null);
+
+  const requestAdminLiveLocation = async (silent: boolean = false) => {
+    setIsAdminLocating(true);
+    setAdminLocStatus('Requesting Admin Live GPS location...');
+    setAdminLocError(null);
+
+    try {
+      const res = await acquireLiveLocation((msg) => setAdminLocStatus(msg));
+      if (res.location) {
+        setAdminLiveLoc(res.location);
+        try {
+          localStorage.setItem('sk_admin_live_location', JSON.stringify(res.location));
+        } catch {}
+        setAdminLocStatus('');
+        setIsAdminLocating(false);
+        if (!silent) {
+          showToast(
+            `✓ Admin Live Location locked: ${res.location.addressText || 'GPS active'}`,
+            'success'
+          );
+        }
+      } else {
+        setIsAdminLocating(false);
+        setAdminLocStatus('');
+        setAdminLocError(res.error || 'Please allow GPS location permission in browser.');
+        if (!silent) {
+          showToast('GPS permission needed to pin Admin Live Location', 'error');
+        }
+      }
+    } catch {
+      setIsAdminLocating(false);
+      setAdminLocStatus('');
+      setAdminLocError('Could not fetch Admin GPS location');
+    }
+  };
+
+  // Automatically ask Admin for live location every time Admin opens the app/website
+  useEffect(() => {
+    requestAdminLiveLocation(true);
   }, []);
 
   type AdminTab =
@@ -553,6 +616,69 @@ const AdminPageInternal: React.FC = () => {
         </div>
       </header>
 
+      {/* Admin Live Location Banner (Auto-requested on every panel open) */}
+      {!adminLiveLoc ? (
+        <div className="bg-amber-500/15 border-b-2 border-amber-400 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs z-10 animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <Compass className={`w-5 h-5 text-amber-600 shrink-0 ${isAdminLocating ? 'animate-spin' : 'animate-bounce'}`} />
+            <div>
+              <span className="font-black text-amber-950 block">
+                {isAdminLocating ? 'Acquiring Admin Live Location via GPS...' : 'Admin Live GPS Location Permission Needed'}
+              </span>
+              <span className="text-[11px] text-[#6B5B4F]">
+                {isAdminLocating
+                  ? adminLocStatus || 'Connecting to device GPS...'
+                  : adminLocError || 'Allow location access so your live restaurant coordinates and order tracking stay accurate.'}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={isAdminLocating}
+            onClick={() => requestAdminLiveLocation()}
+            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all shrink-0 ring-2 ring-amber-400/40"
+          >
+            <Navigation className={`w-4 h-4 ${isAdminLocating ? 'animate-spin' : ''}`} />
+            <span>{isAdminLocating ? 'Acquiring GPS...' : '📍 ALLOW ADMIN LIVE LOCATION'}</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-emerald-950/85 border-b border-emerald-700/60 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-200 z-10">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="font-bold text-white">Admin Live GPS Active:</span>
+            <span className="text-emerald-300 truncate max-w-xs sm:max-w-md">
+              {adminLiveLoc.addressText || `${adminLiveLoc.latitude.toFixed(5)}, ${adminLiveLoc.longitude.toFixed(5)}`}
+            </span>
+            <span className="text-[10px] text-emerald-400 font-mono">
+              [{adminLiveLoc.latitude.toFixed(4)}, {adminLiveLoc.longitude.toFixed(4)}]
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isAdminLocating}
+              onClick={() => requestAdminLiveLocation()}
+              className="text-[11px] font-bold text-emerald-300 hover:text-white underline flex items-center gap-1 cursor-pointer"
+            >
+              <RotateCw className={`w-3 h-3 ${isAdminLocating ? 'animate-spin' : ''}`} />
+              <span>Update GPS</span>
+            </button>
+            <a
+              href={adminLiveLoc.googleMapsLink || getGoogleMapsPinUrl(adminLiveLoc.latitude, adminLiveLoc.longitude)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-bold text-emerald-300 hover:text-white underline inline-flex items-center gap-0.5"
+            >
+              <span>Google Maps</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Real-time Order Alert Banner for Admin */}
       {latestAlertOrder && (
         <div className="bg-amber-500 text-slate-950 px-4 py-2.5 font-bold text-xs sm:text-sm flex items-center justify-between shadow-lg sticky top-14 z-20 animate-fade-in border-b border-amber-600">
@@ -664,6 +790,84 @@ const AdminPageInternal: React.FC = () => {
                 <div className="p-5 rounded-3xl bg-white border border-amber-200 shadow-sm space-y-1">
                   <span className="text-xs font-bold text-[#6B5B4F] uppercase">Products Active</span>
                   <p className="text-3xl font-black text-[#1E1915]">{products.length - outOfStockCount}</p>
+                </div>
+              </div>
+
+              {/* Admin & Kitchen Live GPS Location Panel */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border-2 border-amber-300 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                      <Compass className="w-5 h-5 animate-spin-slow" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-base text-[#1E1915]">Kitchen &amp; Admin Live GPS Location</h3>
+                      <p className="text-xs text-[#6B5B4F]">
+                        Automatically requested every time Admin opens the panel. Used for customer distance calculation and live delivery tracking.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isAdminLocating}
+                    onClick={() => requestAdminLiveLocation()}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isAdminLocating ? 'animate-spin' : ''}`} />
+                    <span>{isAdminLocating ? 'Updating GPS...' : 'Re-Detect Live Location'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-1">
+                    <span className="text-[10px] font-bold text-[#6B5B4F] uppercase block">Kitchen Address</span>
+                    <span className="font-black text-[#1E1915] block">
+                      {adminLiveLoc?.addressText || RESTAURANT_COORDINATES.address}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-1">
+                    <span className="text-[10px] font-bold text-[#6B5B4F] uppercase block">Live Coordinates</span>
+                    <span className="font-mono font-black text-amber-950 block">
+                      {adminLiveLoc
+                        ? `${adminLiveLoc.latitude.toFixed(5)}, ${adminLiveLoc.longitude.toFixed(5)}`
+                        : `${RESTAURANT_COORDINATES.latitude.toFixed(5)}, ${RESTAURANT_COORDINATES.longitude.toFixed(5)}`}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 block font-bold">
+                      {adminLiveLoc ? `GPS Active (±${adminLiveLoc.accuracy || 15}m)` : 'Default Kitchen GPS'}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#6B5B4F] uppercase block">Google Maps Verification</span>
+                      <p className="text-[11px] text-[#6B5B4F] mt-0.5">Verify coordinates on official Google Maps.</p>
+                    </div>
+                    <a
+                      href={getGoogleMapsPinUrl(
+                        adminLiveLoc?.latitude || RESTAURANT_COORDINATES.latitude,
+                        adminLiveLoc?.longitude || RESTAURANT_COORDINATES.longitude
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-amber-900 hover:text-amber-950 underline inline-flex items-center gap-1 mt-2 text-xs"
+                    >
+                      <span>Open in Google Maps</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Live Interactive Map Preview for Admin */}
+                <div className="rounded-2xl overflow-hidden border border-amber-200 space-y-1">
+                  <div className="bg-amber-100/60 px-3 py-1.5 text-[11px] font-bold text-amber-900 flex items-center justify-between">
+                    <span>📍 Admin Live Location Map</span>
+                    <span className="text-[10px] text-neutral-600">Badagoan Rd, Khureiri, Gwalior</span>
+                  </div>
+                  <InteractiveLiveMap
+                    mode="admin-view"
+                    customerLocation={adminLiveLoc}
+                    height="200px"
+                  />
                 </div>
               </div>
 
@@ -995,7 +1199,7 @@ const AdminPageInternal: React.FC = () => {
                   </button>
                 </div>
               ) : ordersViewMode === 'sheet' ? (
-                /* SHEET / TABLE VIEW (जैसे Excel / Zomato Kitchen Sheet) */
+                /* SHEET / TABLE VIEW (Kitchen Order Sheet) */
                 <div className="bg-white rounded-3xl border border-amber-200 shadow-md overflow-hidden animate-fade-in">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">

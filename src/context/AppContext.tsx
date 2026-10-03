@@ -1481,15 +1481,15 @@ _Please confirm this order and its preparation status._`;
       const trackLink = `${origin}/#track-${orderId}`;
 
       if (newStatus === 'Preparing') {
-        statusMsg = `Namaste ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n📍 Live Order Tracking: ${trackLink}\n\nExpected ready time: ~15-20 minutes!`;
+        statusMsg = `Hello ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n📍 Live Order Tracking: ${trackLink}\n\nExpected ready time: ~15-20 minutes!`;
       } else if (newStatus === 'Out for delivery') {
-        statusMsg = `Namaste ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your pinned address.\n\n🗺️ Live GPS Tracking: ${trackLink}\n\nPlease keep your phone nearby!`;
+        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your pinned address.\n\n🗺️ Live GPS Tracking: ${trackLink}\n\nPlease keep your phone nearby!`;
       } else if (newStatus === 'Delivered') {
-        statusMsg = `Namaste ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n\nHave a great meal! 🍕❤️`;
+        statusMsg = `Hello ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n\nHave a great meal! 🍕❤️`;
       } else if (newStatus === 'Cancelled') {
-        statusMsg = `Namaste ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.`;
+        statusMsg = `Hello ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.`;
       } else {
-        statusMsg = `Namaste ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}`;
+        statusMsg = `Hello ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}`;
       }
 
       const cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');

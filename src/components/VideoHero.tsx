@@ -279,7 +279,7 @@ export const VideoHero: React.FC = () => {
             Frame {currentFrame} / {TOTAL_FRAMES}
           </span>
           <span className="text-[10px] text-neutral-300 hidden sm:inline">
-            • स्क्रोल फ्रेम
+            • Scroll Frame
           </span>
         </div>
 
@@ -295,7 +295,7 @@ export const VideoHero: React.FC = () => {
             }`}
           >
             <Building className="w-3.5 h-3.5" />
-            <span>रेस्टोरेंट फोटो</span>
+            <span>Storefront</span>
           </button>
 
           <button
@@ -308,7 +308,7 @@ export const VideoHero: React.FC = () => {
             }`}
           >
             <Play className="w-3.5 h-3.5" />
-            <span>वीडियो</span>
+            <span>Kitchen Video</span>
           </button>
         </div>
 

@@ -227,13 +227,13 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
 
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-200 text-emerald-950 text-xs font-black uppercase tracking-wider">
-              <span>✓ ऑर्डर सफलतापूर्वक पूरा हुआ</span>
+              <span>✓ Order Completed Successfully</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-emerald-800">
-              ऑर्डर डिलीवर हो गया! (ORDER COMPLETED)
+              Order Delivered! (Order Completed)
             </h3>
             <p className="text-xs sm:text-sm text-emerald-900/90 font-medium max-w-md mx-auto">
-              आपका पिज़्ज़ा ऑर्डर सफलतापूर्वक आपके दिए गए पते पर डिलीवर कर दिया गया है। SK Pizza Point चुनने के लिए धन्यवाद!
+              Your food order has been successfully delivered fresh to your address. Thank you for choosing SK Pizza Point!
             </p>
           </div>
 
@@ -241,11 +241,11 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
           <div className="pt-3 border-t border-emerald-300/80 flex flex-wrap items-center justify-center gap-3 text-xs font-bold text-emerald-950">
             <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs">
               <Calendar className="w-4 h-4 text-emerald-600" />
-              <span>ऑर्डर दिनांक: {new Date(order.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              <span>Order Date: {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs">
               <Clock className="w-4 h-4 text-emerald-600" />
-              <span>डिलीवरी समय: {new Date(order.updatedAt || order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>Delivered Time: {new Date(order.updatedAt || order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-xl border border-emerald-300 shadow-xs font-mono">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -262,21 +262,21 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
               <span className="text-xs font-black uppercase tracking-wider text-amber-950">
-                ऑर्डर अभी प्रोसेसिंग में चल रहा है (Order Under Processing)
+                Order Under Active Processing
               </span>
             </div>
             <p className="text-xs text-[#55473E] font-semibold">
               {order.status === 'Preparing'
-                ? '🍕 पिज़्ज़ा किचन में तैयार हो रहा है (Kitchen is baking fresh in stone oven)'
+                ? '🍕 Kitchen is baking your order fresh with mozzarella cheese in our oven.'
                 : order.status === 'Out for delivery'
-                ? '🛵 राइडर ने ऑर्डर पिकअप कर लिया है और आपके पते की ओर निकल चुका है!'
-                : '📝 आपका ऑर्डर प्राप्त हो गया है और किचन टीम द्वारा कन्फर्म हो रहा है।'}
+                ? '🛵 Delivery rider has picked up your order and is heading towards your location!'
+                : '📝 Your order has been received and confirmed by our kitchen team.'}
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto text-xs bg-white px-3.5 py-2 rounded-xl border border-amber-300 font-bold text-amber-950 shrink-0">
             <Clock className="w-4 h-4 text-amber-700" />
-            <span>ऑर्डर समय: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>Order Time: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         </div>
       )}

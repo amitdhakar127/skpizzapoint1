@@ -143,20 +143,20 @@ export const MyOrdersPage: React.FC = () => {
             <div className="space-y-1">
               <h3 className="font-extrabold text-base sm:text-lg text-[#1E1915]">
                 {allUserOrders.length === 0
-                  ? 'अभी तक कोई आर्डर नहीं मिला'
-                  : 'कोई मैचिंग आर्डर नहीं मिला'}
+                  ? 'No Orders Placed Yet'
+                  : 'No Matching Orders Found'}
               </h3>
               <p className="text-xs text-[#6B5B4F] max-w-md mx-auto">
                 {allUserOrders.length === 0
-                  ? 'जैसे ही आप पिज़्ज़ा या बर्गर ऑर्डर करेंगे, आपका आर्डर यहां हमेशा हमेशा के लिए सेव रहेगा!'
-                  : 'कृपया सही आर्डर ID डालें या सर्च बॉक्स खाली करें।'}
+                  ? 'Once you place your pizza or burger order, your complete order history will be saved here permanently!'
+                  : 'Please check the order ID or clear your search query.'}
               </p>
             </div>
             <button
               onClick={() => navigate('/menu')}
               className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer"
             >
-              स्वादिष्ट मेन्यू देखें (Explore Menu)
+              Explore Delicious Menu
             </button>
           </div>
         ) : (

@@ -233,7 +233,7 @@ class SoundAlertManager {
     }
   }
 
-  // Speak voice speech announcement in Hindi / Indian English
+  // Speak voice speech announcement in English
   public speakOrderAlert(orderId: string, customerName: string, amount: number): void {
     if (this.isMuted || !this.isAlarmActive) return;
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -241,23 +241,19 @@ class SoundAlertManager {
     try {
       window.speechSynthesis.cancel(); // Stop any pending speech
 
-      const hindiText = `नया ऑर्डर आ गया है! ग्राहक ${customerName}, कुल राशि ₹${Math.round(amount)} रुपए। ऑर्डर चेक करें।`;
-      const utterance = new SpeechSynthesisUtterance(hindiText);
+      const englishText = `Attention! New order received from ${customerName}. Bill amount is ${Math.round(amount)} rupees. Please accept order.`;
+      const utterance = new SpeechSynthesisUtterance(englishText);
       utterance.rate = 1.05;
       utterance.pitch = 1.1;
       utterance.volume = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
-      const hindiVoice = voices.find(
-        (v) => v.lang.includes('hi') || v.lang.includes('hi-IN') || v.name.toLowerCase().includes('hindi')
+      const englishVoice = voices.find(
+        (v) => v.lang.includes('en-IN') || v.lang.includes('en-US') || v.lang.includes('en')
       );
-      const indianVoice = voices.find((v) => v.lang.includes('en-IN'));
 
-      if (hindiVoice) {
-        utterance.voice = hindiVoice;
-      } else if (indianVoice) {
-        utterance.voice = indianVoice;
-        utterance.text = `Attention! New order from ${customerName}. Amount: ${Math.round(amount)} rupees. Please accept order.`;
+      if (englishVoice) {
+        utterance.voice = englishVoice;
       }
 
       window.speechSynthesis.speak(utterance);
@@ -411,7 +407,7 @@ class SoundAlertManager {
 
     this.startContinuousOrderAlarm({
       id: 'TEST-ALERT',
-      customerName: 'Test Order (सायरन टेस्ट)',
+      customerName: 'Test Order (Siren Test)',
       amount: 549,
     });
   }

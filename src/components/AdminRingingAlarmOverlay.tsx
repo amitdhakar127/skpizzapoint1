@@ -50,14 +50,14 @@ export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> =
           <div>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
               <span className="px-2 py-0.5 rounded-full bg-yellow-300 text-slate-950 font-black text-xs uppercase tracking-wider animate-pulse">
-                🚨 ALARM RINGING (बज रहा है...)
+                🚨 ALARM RINGING (ACTIVE)
               </span>
               <span className="font-mono font-black text-sm text-yellow-200">
                 #{activeAlarmOrder.id}
               </span>
             </div>
             <p className="text-sm sm:text-base font-black mt-0.5">
-              नया ऑर्डर: {activeAlarmOrder.customerName} ({formatPrice(activeAlarmOrder.amount)})
+              New Order: {activeAlarmOrder.customerName} ({formatPrice(activeAlarmOrder.amount)})
             </p>
             {currentOrder?.deliveryAddress && (
               <p className="text-xs text-yellow-100 font-semibold line-clamp-1">
@@ -75,7 +75,7 @@ export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> =
             className="px-5 py-2.5 rounded-2xl bg-white text-red-700 hover:bg-yellow-300 hover:text-slate-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer ring-4 ring-white/40"
           >
             <Check className="w-5 h-5 text-emerald-600" />
-            <span>स्वीकार करें एवं अलार्म बंद करें (ACCEPT & STOP)</span>
+            <span>ACCEPT ORDER & STOP ALARM</span>
           </button>
 
           <button
@@ -87,7 +87,7 @@ export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> =
             className="px-4 py-2.5 rounded-2xl bg-black/40 hover:bg-black/60 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-white/30"
           >
             <Eye className="w-4 h-4" />
-            <span>विवरण देखें (View)</span>
+            <span>View Order Details</span>
           </button>
 
           <button

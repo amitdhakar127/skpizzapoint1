@@ -368,18 +368,18 @@ const AccountPageInternal: React.FC = () => {
                             </span>
                             {order.status === 'Delivered' || order.status === 'Completed' ? (
                               <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300">
-                                ✓ ऑर्डर कम्प्लीट (Delivered)
+                                ✓ Completed (Delivered)
                               </span>
                             ) : (
                               <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
-                                🔄 प्रोसेसिंग में ({order.status})
+                                🔄 In Progress ({order.status})
                               </span>
                             )}
                           </div>
                           <span className="text-xs text-[#6B5B4F] font-semibold flex items-center gap-1.5 mt-0.5">
                             <Calendar className="w-3.5 h-3.5 text-amber-700" />
                             <span>
-                              {new Date(order.createdAt).toLocaleDateString('hi-IN', {
+                              {new Date(order.createdAt).toLocaleDateString('en-IN', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',

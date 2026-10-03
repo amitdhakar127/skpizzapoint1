@@ -40,12 +40,12 @@ export const GlobalSirenAlertBanner: React.FC = () => {
           <div>
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-wider">
-                🚨 इमरजेंसी ऑर्डर सायरन (NEW ORDER ALARM)
+                🚨 EMERGENCY ORDER ALARM
               </span>
               <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
             </div>
             <p className="text-xs sm:text-sm font-black tracking-wide text-white drop-shadow">
-              ऑर्डर #{order.id}: {order.customerName} — {formatPrice(order.amount)}
+              Order #{order.id}: {order.customerName} — {formatPrice(order.amount)}
             </p>
           </div>
         </div>
@@ -59,7 +59,7 @@ export const GlobalSirenAlertBanner: React.FC = () => {
             className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-white hover:bg-neutral-100 active:scale-95 text-red-700 font-black text-xs sm:text-sm shadow-xl flex items-center justify-center gap-2 transition-transform cursor-pointer border-2 border-red-300 ring-4 ring-white/30"
           >
             <VolumeX className="w-4 h-4 text-red-600" />
-            <span>🛑 अलार्म बंद करें (STOP ALARM)</span>
+            <span>🛑 STOP ALARM</span>
           </button>
 
           <button
@@ -68,7 +68,7 @@ export const GlobalSirenAlertBanner: React.FC = () => {
             className="px-4 py-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-950 active:scale-95 text-amber-300 font-extrabold text-xs shadow-md flex items-center justify-center gap-1.5 transition-transform cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
-            <span>ऑर्डर देखें</span>
+            <span>View Order</span>
           </button>
         </div>
       </div>

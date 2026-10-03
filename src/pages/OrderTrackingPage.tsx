@@ -64,7 +64,7 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
               className="text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-3 py-1 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>मेरी आर्डर लिस्ट (All Orders)</span>
+              <span>My Orders List</span>
             </button>
             <span className="hidden sm:inline-block text-xs font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
               Live GPS Tracking
@@ -106,7 +106,7 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
         {displayOrders.length > 0 && (
           <div className="bg-amber-50/70 rounded-2xl p-4 border border-amber-200/80 space-y-2.5">
             <span className="text-[11px] font-black uppercase tracking-wider text-amber-950 block">
-              Recent Orders (हालिया ऑर्डर - टैप करके देखें):
+              Recent Orders (Tap to view and track):
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {displayOrders.slice(0, 4).map((ord) => {
