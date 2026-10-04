@@ -69,7 +69,8 @@ export const CartPage: React.FC = () => {
           <div className="lg:col-span-8 space-y-4">
             {cart.map((item) => {
               const product = products.find((p) => p.id === item.productId);
-              const hasMultipleSizes = product && product.sizes.length > 1;
+              const pSizes = product && Array.isArray(product.sizes) ? product.sizes : [];
+              const hasMultipleSizes = pSizes.length > 1;
               const addOnsPrice = item.selectedAddOns.reduce((acc, a) => acc + a.price, 0);
               const itemTotal = (item.unitPrice + addOnsPrice) * item.quantity;
 
@@ -93,7 +94,7 @@ export const CartPage: React.FC = () => {
                         <div className="flex items-center gap-1.5 pt-1">
                           <span className="text-xs text-[#55473E] font-medium">Size:</span>
                           <div className="flex gap-1">
-                            {product?.sizes.map((s) => (
+                            {pSizes.map((s) => (
                               <button
                                 key={s.size}
                                 onClick={() => updateCartItemSize(item.id, s.size as PizzaSize)}

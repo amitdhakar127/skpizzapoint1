@@ -9,13 +9,16 @@ export const ProductDetailModal: React.FC = () => {
   if (!activeProductModal) return null;
   const product = activeProductModal;
 
-  const [selectedSize, setSelectedSize] = useState<PizzaSize | 'Standard'>(product.sizes[0]?.size || 'Small');
+  const safeSizes = Array.isArray(product?.sizes) && product.sizes.length > 0
+    ? product.sizes
+    : [{ size: 'Small' as const, price: 99 }];
+  const [selectedSize, setSelectedSize] = useState<PizzaSize | 'Standard'>(safeSizes[0]?.size || 'Small');
   const [quantity, setQuantity] = useState(1);
   const [selectedAddOns, setSelectedAddOns] = useState<AddOn[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [imgError, setImgError] = useState(false);
 
-  const selectedSizeObj = product.sizes.find((s) => s.size === selectedSize) || product.sizes[0];
+  const selectedSizeObj = safeSizes.find((s) => s.size === selectedSize) || safeSizes[0];
   const basePrice = selectedSizeObj ? selectedSizeObj.price : 0;
   const addOnsTotal = selectedAddOns.reduce((acc, a) => acc + a.price, 0);
   const unitTotal = basePrice + addOnsTotal;
@@ -142,13 +145,13 @@ export const ProductDetailModal: React.FC = () => {
           )}
 
           {/* Size Variants */}
-          {product.sizes.length > 1 && (
+          {safeSizes.length > 1 && (
             <div className="space-y-2">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
                 Choose Size
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {product.sizes.map((s) => {
+                {safeSizes.map((s) => {
                   const isSelected = selectedSize === s.size;
                   return (
                     <button

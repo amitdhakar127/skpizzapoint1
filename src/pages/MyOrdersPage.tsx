@@ -34,18 +34,50 @@ export const MyOrdersPage: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Safe timestamp helper
+  const safeTime = (dateVal: any) => {
+    if (!dateVal) return 0;
+    const t = new Date(dateVal).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  // Safe English date formatters
+  const formatOrderDate = (dateVal: any) => {
+    if (!dateVal) return 'Recently';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return 'Recently';
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const formatOrderTime = (dateVal: any) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Combine device myOrders + currentUser orders + global orders matching phone/email/id
   const combinedOrdersMap = new Map<string, Order>();
 
   // 1. First add device orders (guaranteed local storage persistence)
-  myOrders.forEach((o) => combinedOrdersMap.set(o.id, o));
+  (Array.isArray(myOrders) ? myOrders : []).forEach((o) => {
+    if (o && o.id) combinedOrdersMap.set(o.id, o);
+  });
 
   // 2. Add any matching user orders
-  orders.forEach((o) => {
+  (Array.isArray(orders) ? orders : []).forEach((o) => {
+    if (!o || !o.id) return;
     if (combinedOrdersMap.has(o.id)) {
       // Keep newer version
       const existing = combinedOrdersMap.get(o.id)!;
-      if (new Date(o.updatedAt).getTime() >= new Date(existing.updatedAt).getTime()) {
+      if (safeTime(o.updatedAt) >= safeTime(existing.updatedAt)) {
         combinedOrdersMap.set(o.id, o);
       }
     } else {
@@ -61,28 +93,30 @@ export const MyOrdersPage: React.FC = () => {
   });
 
   const allUserOrders = Array.from(combinedOrdersMap.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => safeTime(b.createdAt) - safeTime(a.createdAt)
   );
 
   const filteredOrders = allUserOrders.filter((ord) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
+    const items = Array.isArray(ord.items) ? ord.items : [];
     return (
-      ord.id.toLowerCase().includes(q) ||
-      ord.customerName.toLowerCase().includes(q) ||
+      (ord.id || '').toLowerCase().includes(q) ||
+      (ord.customerName || '').toLowerCase().includes(q) ||
       (ord.deliveryAddress || '').toLowerCase().includes(q) ||
-      ord.items.some((it) => it.productName.toLowerCase().includes(q))
+      items.some((it) => (it.productName || '').toLowerCase().includes(q))
     );
   });
 
   const handleReorder = (ord: Order) => {
-    ord.items.forEach((item) => {
+    const items = Array.isArray(ord.items) ? ord.items : [];
+    items.forEach((item) => {
       const prod = products.find((p) => p.name === item.productName || p.id === item.productId);
       if (prod) {
         const matchedAddons: any[] = (item.addOns || [])
           .map((name) => (prod.availableAddOns || []).find((a) => a.name === name))
           .filter(Boolean);
-        addToCart(prod, (item.size as any) || 'Small', item.quantity, matchedAddons);
+        addToCart(prod, (item.size as any) || 'Small', item.quantity || 1, matchedAddons);
       }
     });
     navigate('/cart');
@@ -220,16 +254,8 @@ export const MyOrdersPage: React.FC = () => {
                         <p className="text-[11px] font-bold text-neutral-600 flex items-center gap-1.5 mt-0.5">
                           <Calendar className="w-3.5 h-3.5 text-neutral-500" />
                           <span>
-                            {new Date(order.createdAt).toLocaleDateString('hi-IN', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric',
-                            })}{' '}
-                            •{' '}
-                            {new Date(order.createdAt).toLocaleTimeString('hi-IN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatOrderDate(order.createdAt)}{' '}
+                            {formatOrderTime(order.createdAt) ? `• ${formatOrderTime(order.createdAt)}` : ''}
                           </span>
                         </p>
                       </div>
@@ -259,13 +285,13 @@ export const MyOrdersPage: React.FC = () => {
                         Ordered Food Items
                       </span>
                       <div className="divide-y divide-amber-100 bg-neutral-50/70 rounded-2xl p-3 border border-amber-200/60">
-                        {order.items.map((item, idx) => (
+                        {(Array.isArray(order.items) ? order.items : []).map((item, idx) => (
                           <div key={idx} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between text-xs gap-3">
                             <div className="flex items-center gap-3 min-w-0">
                               {item.imageUrl ? (
                                 <img
                                   src={item.imageUrl}
-                                  alt={item.productName}
+                                  alt={item.productName || 'Pizza'}
                                   className="w-11 h-11 rounded-xl object-cover shrink-0 border border-amber-200 shadow-xs"
                                   onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                 />
@@ -276,12 +302,12 @@ export const MyOrdersPage: React.FC = () => {
                               )}
                               <div className="space-y-0.5 min-w-0">
                                 <span className="font-extrabold text-[#1E1915] block truncate">
-                                  {item.productName}{' '}
+                                  {item.productName || 'Item'}{' '}
                                   <span className="font-normal text-neutral-500">
-                                    ({item.size}) × {item.quantity}
+                                    ({item.size || 'Regular'}) × {item.quantity || 1}
                                   </span>
                                 </span>
-                                {item.addOns && item.addOns.length > 0 && (
+                                {Array.isArray(item.addOns) && item.addOns.length > 0 && (
                                   <p className="text-[10px] text-amber-800">
                                     Add-ons: +{item.addOns.join(', ')}
                                   </p>
@@ -289,7 +315,7 @@ export const MyOrdersPage: React.FC = () => {
                               </div>
                             </div>
                             <span className="font-bold text-[#1E1915] shrink-0">
-                              {formatPrice(item.totalPrice)}
+                              {formatPrice(Number(item.totalPrice) || 0)}
                             </span>
                           </div>
                         ))}

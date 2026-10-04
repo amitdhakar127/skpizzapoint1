@@ -75,10 +75,10 @@ export const MenuPage: React.FC<MenuPageProps> = ({ initialCategory = 'all' }) =
         return true;
       })
       .sort((a, b) => {
-        const getBasePrice = (prod: Product) => prod.sizes[0]?.price || 0;
+        const getBasePrice = (prod: Product) => (Array.isArray(prod?.sizes) && prod.sizes[0]?.price) || 0;
         if (sortBy === 'price-asc') return getBasePrice(a) - getBasePrice(b);
         if (sortBy === 'price-desc') return getBasePrice(b) - getBasePrice(a);
-        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
         return 0;
       });
   }, [products, selectedCategory, onlyAvailable, searchQuery, sortBy]);
@@ -251,9 +251,10 @@ export const MenuPage: React.FC<MenuPageProps> = ({ initialCategory = 'all' }) =
                     </thead>
                     <tbody className="divide-y divide-amber-100 font-medium">
                       {pizzaProducts.map((p) => {
-                        const smallPrice = p.sizes.find((s) => s.size === 'Small')?.price || 0;
-                        const medPrice = p.sizes.find((s) => s.size === 'Medium')?.price || 0;
-                        const largePrice = p.sizes.find((s) => s.size === 'Large')?.price || 0;
+                        const sList = Array.isArray(p?.sizes) ? p.sizes : [];
+                        const smallPrice = sList.find((s) => s.size === 'Small')?.price || sList[0]?.price || 0;
+                        const medPrice = sList.find((s) => s.size === 'Medium')?.price || 0;
+                        const largePrice = sList.find((s) => s.size === 'Large')?.price || 0;
 
                         return (
                           <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
@@ -311,7 +312,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ initialCategory = 'all' }) =
                     </thead>
                     <tbody className="divide-y divide-amber-100 font-medium">
                       {burgerProducts.map((p) => {
-                        const price = p.sizes[0]?.price || 0;
+                        const price = (Array.isArray(p?.sizes) && p.sizes[0]?.price) || 0;
                         return (
                           <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
                             <td className="p-4 font-bold text-[#1E1915]">{p.name}</td>
@@ -359,7 +360,7 @@ export const MenuPage: React.FC<MenuPageProps> = ({ initialCategory = 'all' }) =
                     </thead>
                     <tbody className="divide-y divide-amber-100 font-medium">
                       {sandwichProducts.map((p) => {
-                        const price = p.sizes[0]?.price || 0;
+                        const price = (Array.isArray(p?.sizes) && p.sizes[0]?.price) || 0;
                         return (
                           <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
                             <td className="p-4 font-bold text-[#1E1915]">{p.name}</td>

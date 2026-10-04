@@ -6,6 +6,7 @@ interface Props {
   fallbackTitle?: string;
   fallbackMessage?: string;
   isRoot?: boolean;
+  resetKey?: string | number;
 }
 
 interface State {
@@ -27,16 +28,60 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught error:', error, errorInfo);
   }
 
+  public componentDidMount() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hashchange', this.handleHashChange);
+    }
+  }
+
+  public componentWillUnmount() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('hashchange', this.handleHashChange);
+    }
+  }
+
+  private handleHashChange = () => {
+    if (this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
+  };
+
+  public componentDidUpdate(prevProps: Props) {
+    // Automatically recover when navigation changes or children change
+    if (
+      (prevProps.children !== this.props.children || prevProps.resetKey !== this.props.resetKey) &&
+      this.state.hasError
+    ) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   private handleReset = () => {
     this.setState({ hasError: false, error: null });
   };
 
-  private handleGoHome = () => {
+  private handleRecoverAndReset = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('sk_pizza_local_orders');
+        localStorage.removeItem('sk_pizza_my_orders');
+        localStorage.removeItem('sk_pizza_orders_initialized');
+      }
+    } catch {}
     this.setState({ hasError: false, error: null });
     if (typeof window !== 'undefined') {
       window.location.hash = '/';
       window.location.reload();
     }
+  };
+
+  private handleGoHome = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.location.hash = '/';
+      }
+    } catch {}
+    this.setState({ hasError: false, error: null });
   };
 
   public render() {
@@ -90,7 +135,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.props.fallbackMessage ||
               'A component encountered a temporary network or display glitch. Your data is stored safely in local storage.'}
           </p>
-          <div className="flex items-center justify-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
             <button
               type="button"
               onClick={this.handleReset}
@@ -98,6 +143,22 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry View</span>
+            </button>
+            <button
+              type="button"
+              onClick={this.handleGoHome}
+              className="px-4 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-900 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-transform active:scale-95"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Go to Home</span>
+            </button>
+            <button
+              type="button"
+              onClick={this.handleRecoverAndReset}
+              className="px-3 py-1.5 rounded-xl bg-red-100 hover:bg-red-200 text-red-900 font-bold text-xs inline-flex items-center gap-1 cursor-pointer"
+              title="Clears local cache and reloads fresh data"
+            >
+              <span>Reset Cache</span>
             </button>
           </div>
         </div>

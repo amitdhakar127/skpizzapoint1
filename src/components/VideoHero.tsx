@@ -74,10 +74,12 @@ export const VideoHero: React.FC = () => {
             videoRef.current.duration &&
             !isNaN(videoRef.current.duration)
           ) {
-            const targetTime = progress * videoRef.current.duration;
-            if (Math.abs(videoRef.current.currentTime - targetTime) > 0.04) {
-              videoRef.current.currentTime = targetTime;
-            }
+            try {
+              const targetTime = progress * videoRef.current.duration;
+              if (Math.abs(videoRef.current.currentTime - targetTime) > 0.04) {
+                videoRef.current.currentTime = targetTime;
+              }
+            } catch {}
           }
           ticking = false;
         });

@@ -13,6 +13,8 @@ import {
   UserProfile,
   LiveLocation,
   BroadcastNotification,
+  OrderItemSnapshot,
+  ProductCategory,
 } from '../types';
 import { soundAlerts } from '../lib/soundAlerts';
 import {
@@ -22,6 +24,7 @@ import {
   INITIAL_VIDEOS,
   INITIAL_REVIEWS,
   INITIAL_ORDERS,
+  INITIAL_ADDONS,
 } from '../data/initialData';
 import {
   auth,
@@ -208,27 +211,194 @@ interface AppContextType {
   syncInitialDataToCloud: () => Promise<void>;
 }
 
+// Robust product normalization helper to guarantee crash-free sizes & add-ons across all components
+export const normalizeProduct = (raw: any): Product | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || raw.productId || `prod-${Math.random().toString(36).slice(2, 8)}`);
+
+  // Ensure sizes is always a valid non-empty array
+  let sizesList: any[] = [];
+  if (Array.isArray(raw.sizes)) {
+    sizesList = raw.sizes.filter(Boolean);
+  } else if (raw.sizes && typeof raw.sizes === 'object') {
+    sizesList = Object.values(raw.sizes).filter(Boolean);
+  }
+
+  const safeSizes: { size: PizzaSize | 'Standard'; price: number }[] = sizesList
+    .map((s: any) => ({
+      size: (s?.size as PizzaSize | 'Standard') || 'Small',
+      price: Math.max(0, Number(s?.price) || 0),
+    }))
+    .filter((s) => s.price >= 0);
+
+  // If no sizes were provided or array is empty, create standard sizes based on raw.price or defaults
+  if (safeSizes.length === 0) {
+    const base = Math.max(1, Number(raw.price) || 69);
+    const cat = String(raw.category || 'pizza').toLowerCase();
+    if (cat === 'pizza') {
+      safeSizes.push(
+        { size: 'Small', price: base },
+        { size: 'Medium', price: Math.round(base * 1.6) },
+        { size: 'Large', price: Math.round(base * 2.5) }
+      );
+    } else {
+      safeSizes.push({ size: 'Small', price: base });
+    }
+  }
+
+  // Ensure availableAddOns is always an array
+  let addOnsList: any[] = [];
+  if (Array.isArray(raw.availableAddOns)) {
+    addOnsList = raw.availableAddOns.filter(Boolean);
+  } else if (raw.availableAddOns && typeof raw.availableAddOns === 'object') {
+    addOnsList = Object.values(raw.availableAddOns).filter(Boolean);
+  }
+
+  const safeAddOns: AddOn[] = addOnsList.map((a: any, idx: number) => ({
+    id: String(a?.id || `addon-${idx}`),
+    name: String(a?.name || 'Extra Cheese'),
+    price: Math.max(0, Number(a?.price) || 0),
+  }));
+
+  const cat = String(raw.category || 'pizza').toLowerCase() as ProductCategory;
+  const safeCategory: ProductCategory = (['pizza', 'burger', 'sandwich'] as ProductCategory[]).includes(cat)
+    ? cat
+    : 'pizza';
+
+  return {
+    id,
+    name: String(raw.name || 'SK Pizza Special'),
+    category: safeCategory,
+    description: String(raw.description || 'Freshly prepared at SK Pizza Point'),
+    imageUrl: String(
+      raw.imageUrl ||
+      'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80'
+    ),
+    sizes: safeSizes,
+    availableAddOns: safeAddOns.length > 0 ? safeAddOns : INITIAL_ADDONS,
+    isAvailable: raw.isAvailable !== false,
+    isFeatured: Boolean(raw.isFeatured),
+    badge: raw.badge ? String(raw.badge) : undefined,
+    createdAt: raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
+    updatedAt: raw.updatedAt ? String(raw.updatedAt) : new Date().toISOString(),
+  };
+};
+
+// Robust order normalization helper to guarantee crash-free properties across all components
+export const normalizeOrder = (raw: any): Order | null => {
+  if (!raw || typeof raw !== 'object' || !raw.id) return null;
+
+  let items: any[] = [];
+  if (Array.isArray(raw.items)) {
+    items = raw.items.filter(Boolean);
+  } else if (raw.items && typeof raw.items === 'object') {
+    items = Object.values(raw.items).filter(Boolean);
+  }
+
+  const safeItems: OrderItemSnapshot[] = items.map((it: any) => {
+    let addOns: string[] = [];
+    if (Array.isArray(it?.addOns)) {
+      addOns = it.addOns.filter(Boolean);
+    } else if (it?.addOns && typeof it.addOns === 'object') {
+      addOns = Object.values(it.addOns).filter(Boolean) as string[];
+    }
+
+    return {
+      productId: String(it?.productId || 'item'),
+      productName: String(it?.productName || 'Pizza Item'),
+      category: (it?.category as ProductCategory) || 'pizza',
+      imageUrl: it?.imageUrl ? String(it.imageUrl) : undefined,
+      size: String(it?.size || 'Regular'),
+      quantity: Math.max(1, Number(it?.quantity) || 1),
+      unitPrice: Number(it?.unitPrice) || 0,
+      totalPrice: Number(it?.totalPrice) || Number(it?.unitPrice) || 0,
+      addOns,
+    };
+  });
+
+  return {
+    id: String(raw.id),
+    userId: raw.userId ? String(raw.userId) : 'guest',
+    customerEmail: raw.customerEmail ? String(raw.customerEmail) : undefined,
+    customerName: String(raw.customerName || 'Customer'),
+    customerPhone: String(raw.customerPhone || ''),
+    orderType: raw.orderType === 'pickup' ? 'pickup' : 'delivery',
+    deliveryAddress: raw.deliveryAddress ? String(raw.deliveryAddress) : '',
+    city: raw.city ? String(raw.city) : '',
+    pinCode: raw.pinCode ? String(raw.pinCode) : '',
+    instructions: raw.instructions ? String(raw.instructions) : '',
+    items: safeItems,
+    subtotal: Number(raw.subtotal) || 0,
+    deliveryFee: Number(raw.deliveryFee) || 0,
+    discount: Number(raw.discount) || 0,
+    finalTotal: Number(raw.finalTotal) || 0,
+    paymentMode: raw.paymentMode ? String(raw.paymentMode) : 'Cash on Delivery',
+    paymentStatus: (raw.paymentStatus as 'Pending' | 'Cash on Delivery' | 'Paid Online' | 'Verified') || 'Pending',
+    status: (raw.status as OrderStatus) || 'Pending',
+    customerLocation:
+      raw.customerLocation && typeof raw.customerLocation.latitude === 'number'
+        ? raw.customerLocation
+        : undefined,
+    deliveryRiderLocation:
+      (raw.deliveryRiderLocation || raw.riderLocation) &&
+      typeof (raw.deliveryRiderLocation || raw.riderLocation).latitude === 'number'
+        ? (raw.deliveryRiderLocation || raw.riderLocation)
+        : undefined,
+    createdAt: raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
+    updatedAt: raw.updatedAt ? String(raw.updatedAt) : raw.createdAt ? String(raw.createdAt) : new Date().toISOString(),
+  };
+};
+
+export const normalizePath = (rawPath: string): string => {
+  if (!rawPath) return '/';
+  let p = rawPath.replace(/^#+/, '').trim();
+  if (!p) return '/';
+  if (!p.startsWith('/')) p = '/' + p;
+  return p;
+};
+
+// Permanently deleted orders set (ensures deleted orders never resurrect)
+export const getDeletedOrderIds = (): Set<string> => {
+  try {
+    if (typeof window === 'undefined') return new Set();
+    const saved = localStorage.getItem('sk_pizza_deleted_orders');
+    return new Set(saved ? JSON.parse(saved) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+export const markOrderAsDeleted = (orderId: string) => {
+  try {
+    if (typeof window === 'undefined') return;
+    const current = getDeletedOrderIds();
+    current.add(orderId);
+    localStorage.setItem('sk_pizza_deleted_orders', JSON.stringify(Array.from(current)));
+  } catch {}
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Navigation & Routing state
+  // Navigation & Routing state (safe URL parsing)
   const [currentPath, setCurrentPath] = useState<string>(() => {
     if (typeof window === 'undefined') return '/';
     const hash = window.location.hash.replace(/^#/, '');
-    if (hash) return hash;
-    return window.location.pathname || '/';
+    if (hash) return normalizePath(hash);
+    return normalizePath(window.location.pathname || '/');
   });
 
   const navigate = useCallback((path: string) => {
-    window.location.hash = path;
-    setCurrentPath(path);
+    const clean = normalizePath(path);
+    window.location.hash = clean;
+    setCurrentPath(clean);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#/, '');
-      setCurrentPath(hash || '/');
+      setCurrentPath(normalizePath(hash || '/'));
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -281,7 +451,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isPasscodeAdmin, currentUser]);
 
   // Cloud Database States (Realtime Database)
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    return INITIAL_PRODUCTS.map(normalizeProduct).filter((p): p is Product => p !== null);
+  });
   const [settings, setSettings] = useState<RestaurantSettings>(INITIAL_SETTINGS);
   const [gallery, setGallery] = useState<GalleryItem[]>(INITIAL_GALLERY);
   const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
@@ -290,8 +462,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Device-level My Orders (Permanently persists user orders on this device whether logged in or guest)
   const [myOrders, setMyOrders] = useState<Order[]>(() => {
     try {
-      const saved = localStorage.getItem('sk_pizza_my_orders');
-      return saved ? JSON.parse(saved) : [];
+      const deletedIds = getDeletedOrderIds();
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('sk_pizza_my_orders') : null;
+      const raw: any[] = saved ? JSON.parse(saved) : [];
+      return raw
+        .map(normalizeOrder)
+        .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
     } catch {
       return [];
     }
@@ -300,19 +476,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // All restaurant orders (cached locally & synced bidirectional with cloud)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
-      const saved = localStorage.getItem('sk_pizza_local_orders');
-      const savedMy = localStorage.getItem('sk_pizza_my_orders');
-      const o1: Order[] = saved ? JSON.parse(saved) : [];
-      const o2: Order[] = savedMy ? JSON.parse(savedMy) : [];
+      const deletedIds = getDeletedOrderIds();
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('sk_pizza_local_orders') : null;
+      const savedMy = typeof window !== 'undefined' ? localStorage.getItem('sk_pizza_my_orders') : null;
+      const o1: any[] = saved ? JSON.parse(saved) : [];
+      const o2: any[] = savedMy ? JSON.parse(savedMy) : [];
       const mergedMap = new Map<string, Order>();
-      // Guarantee rich initial orders are present if local storage is blank
-      const seedList = (o1.length === 0 && o2.length === 0) ? INITIAL_ORDERS : [];
-      [...seedList, ...o1, ...o2].forEach((o) => { if (o && o.id) mergedMap.set(o.id, o); });
+
+      const isInitialized =
+        typeof window !== 'undefined' && localStorage.getItem('sk_pizza_orders_initialized') === 'true';
+      const seedList = !isInitialized && o1.length === 0 && o2.length === 0 ? INITIAL_ORDERS : [];
+      if (!isInitialized && typeof window !== 'undefined') {
+        localStorage.setItem('sk_pizza_orders_initialized', 'true');
+      }
+
+      [...seedList, ...o1, ...o2].forEach((raw) => {
+        const o = normalizeOrder(raw);
+        if (o && !deletedIds.has(o.id)) mergedMap.set(o.id, o);
+      });
       return Array.from(mergedMap.values()).sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } catch {
-      return INITIAL_ORDERS;
+      return INITIAL_ORDERS.map(normalizeOrder).filter((o): o is Order => o !== null);
     }
   });
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
@@ -454,19 +640,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Real-time listener for Customer's specific Orders in userOrders/{uid}
         const userOrdersRef = ref(rtdb, `userOrders/${user.uid}`);
         unsubUserOrders = onValue(userOrdersRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const val = snapshot.val();
-            const personalOrders: Order[] = Array.isArray(val)
-              ? val.filter(Boolean)
-              : Object.keys(val).map((k) => val[k]);
-            setOrders((prev) => {
-              const map = new Map<string, Order>();
-              prev.forEach((o) => map.set(o.id, o));
-              personalOrders.forEach((o) => map.set(o.id, o));
-              return Array.from(map.values()).sort(
-                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-            });
+          try {
+            if (snapshot.exists()) {
+              const val = snapshot.val();
+              const deletedIds = getDeletedOrderIds();
+              const rawList = Array.isArray(val)
+                ? val.filter(Boolean)
+                : Object.values(val || {}).filter(Boolean);
+              const personalOrders = rawList
+                .map(normalizeOrder)
+                .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
+
+              const safeSort = (a: Order, b: Order) => {
+                const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+              };
+
+              setOrders((prev) => {
+                const map = new Map<string, Order>();
+                prev.forEach((o) => { if (o && o.id && !deletedIds.has(o.id)) map.set(o.id, o); });
+                personalOrders.forEach((o) => map.set(o.id, o));
+                return Array.from(map.values()).sort(safeSort);
+              });
+
+              setMyOrders((prev) => {
+                const map = new Map<string, Order>();
+                prev.forEach((o) => { if (o && o.id && !deletedIds.has(o.id)) map.set(o.id, o); });
+                personalOrders.forEach((o) => map.set(o.id, o));
+                return Array.from(map.values()).sort(safeSort);
+              });
+            }
+          } catch (err) {
+            console.warn('Error reading user orders:', err);
           }
         });
       } else {
@@ -498,10 +704,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudDbError(null);
         if (snapshot.exists()) {
           const val = snapshot.val();
-          const items: Product[] = Array.isArray(val)
+          const items: any[] = Array.isArray(val)
             ? val.filter(Boolean)
-            : Object.keys(val).map((k) => val[k]);
-          setProducts(items);
+            : Object.keys(val || {}).map((k) => val[k]);
+          const normalized = items
+            .map(normalizeProduct)
+            .filter((p): p is Product => p !== null);
+          setProducts(normalized.length > 0 ? normalized : INITIAL_PRODUCTS.map(normalizeProduct).filter((p): p is Product => p !== null));
         } else {
           // Database is empty on initial run: seed initial products
           const initialMap: Record<string, Product> = {};
@@ -517,165 +726,178 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // Subscribe to settings
-    const unsubSettings = onValue(settingsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setSettings((prev) => ({ ...prev, ...snapshot.val() }));
-      } else {
-        set(settingsRef, INITIAL_SETTINGS).catch(() => {});
+    const unsubSettings = onValue(
+      settingsRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setSettings((prev) => ({ ...INITIAL_SETTINGS, ...prev, ...(snapshot.val() || {}) }));
+        } else {
+          set(settingsRef, INITIAL_SETTINGS).catch(() => {});
+        }
+      },
+      (error) => {
+        console.warn('Settings listener error:', error);
       }
-    });
+    );
 
     // Subscribe to gallery
-    const unsubGallery = onValue(galleryRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        const items: GalleryItem[] = Array.isArray(val)
-          ? val.filter(Boolean)
-          : Object.keys(val).map((k) => val[k]);
-        setGallery(items.sort((a, b) => a.sortOrder - b.sortOrder));
-      } else {
-        const galMap: Record<string, GalleryItem> = {};
-        INITIAL_GALLERY.forEach((g) => {
-          galMap[g.id] = g;
-        });
-        set(galleryRef, galMap).catch(() => {});
+    const unsubGallery = onValue(
+      galleryRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          const items: GalleryItem[] = Array.isArray(val)
+            ? val.filter(Boolean)
+            : Object.keys(val || {}).map((k) => val[k]);
+          setGallery(items.sort((a, b) => a.sortOrder - b.sortOrder));
+        } else {
+          const galMap: Record<string, GalleryItem> = {};
+          INITIAL_GALLERY.forEach((g) => {
+            galMap[g.id] = g;
+          });
+          set(galleryRef, galMap).catch(() => {});
+        }
+      },
+      (error) => {
+        console.warn('Gallery listener error:', error);
       }
-    });
+    );
 
     // Subscribe to videos
-    const unsubVideos = onValue(videosRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        const items: VideoItem[] = Array.isArray(val)
-          ? val.filter(Boolean)
-          : Object.keys(val).map((k) => val[k]);
-        setVideos(items.sort((a, b) => a.sortOrder - b.sortOrder));
-      } else {
-        const vidMap: Record<string, VideoItem> = {};
-        INITIAL_VIDEOS.forEach((v) => {
-          vidMap[v.id] = v;
-        });
-        set(videosRef, vidMap).catch(() => {});
+    const unsubVideos = onValue(
+      videosRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          const items: VideoItem[] = Array.isArray(val)
+            ? val.filter(Boolean)
+            : Object.keys(val || {}).map((k) => val[k]);
+          setVideos(items.sort((a, b) => a.sortOrder - b.sortOrder));
+        } else {
+          const vidMap: Record<string, VideoItem> = {};
+          INITIAL_VIDEOS.forEach((v) => {
+            vidMap[v.id] = v;
+          });
+          set(videosRef, vidMap).catch(() => {});
+        }
+      },
+      (error) => {
+        console.warn('Videos listener error:', error);
       }
-    });
+    );
 
     // Subscribe to reviews
-    const unsubReviews = onValue(reviewsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        const items: Review[] = Array.isArray(val)
-          ? val.filter(Boolean)
-          : Object.keys(val).map((k) => val[k]);
-        setReviews(items);
-      } else {
-        const revMap: Record<string, Review> = {};
-        INITIAL_REVIEWS.forEach((r) => {
-          revMap[r.id] = r;
-        });
-        set(reviewsRef, revMap).catch(() => {});
-      }
-    });
-
-    // Subscribe to orders (Bidirectional Sync: Merges cloud & local storage so no order is ever lost)
-    const unsubOrders = onValue(ordersRef, (snapshot) => {
-      let cloudItems: Order[] = [];
-      if (snapshot.exists()) {
-        const val = snapshot.val();
-        cloudItems = Array.isArray(val)
-          ? val.filter(Boolean)
-          : Object.keys(val).map((k) => val[k]);
-      }
-
-      // Read local storage orders to merge
-      let localOrders: Order[] = [];
-      try {
-        const savedLocal = localStorage.getItem('sk_pizza_local_orders');
-        const savedMy = localStorage.getItem('sk_pizza_my_orders');
-        const l1: Order[] = savedLocal ? JSON.parse(savedLocal) : [];
-        const l2: Order[] = savedMy ? JSON.parse(savedMy) : [];
-        localOrders = [...l1, ...l2];
-      } catch {}
-
-      // Build unified merged map
-      const mergedMap = new Map<string, Order>();
-      localOrders.forEach((lo) => {
-        if (lo && lo.id) mergedMap.set(lo.id, lo);
-      });
-      cloudItems.forEach((co) => {
-        if (co && co.id) {
-          const existing = mergedMap.get(co.id);
-          if (!existing) {
-            mergedMap.set(co.id, co);
-          } else {
-            const cloudTime = new Date(co.updatedAt || co.createdAt).getTime();
-            const localTime = new Date(existing.updatedAt || existing.createdAt).getTime();
-            mergedMap.set(co.id, cloudTime >= localTime ? co : existing);
-          }
+    const unsubReviews = onValue(
+      reviewsRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          const items: Review[] = Array.isArray(val)
+            ? val.filter(Boolean)
+            : Object.keys(val || {}).map((k) => val[k]);
+          setReviews(items);
+        } else {
+          const revMap: Record<string, Review> = {};
+          INITIAL_REVIEWS.forEach((r) => {
+            revMap[r.id] = r;
+          });
+          set(reviewsRef, revMap).catch(() => {});
         }
-      });
+      },
+      (error) => {
+        console.warn('Reviews listener error:', error);
+      }
+    );
 
-      // If empty, guarantee initial demo orders so admin can manage orders immediately
-      if (mergedMap.size === 0) {
-        INITIAL_ORDERS.forEach((io) => mergedMap.set(io.id, io));
+    // Subscribe to orders (Bidirectional Sync with safe normalization and deletion protection)
+    const unsubOrders = onValue(
+      ordersRef,
+      (snapshot) => {
+        const deletedIds = getDeletedOrderIds();
+        let cloudItems: Order[] = [];
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          const rawList = Array.isArray(val)
+            ? val.filter(Boolean)
+            : Object.keys(val || {}).map((k) => val[k]);
+          cloudItems = rawList
+            .map(normalizeOrder)
+            .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
+        }
+
+        // Read local storage orders to merge safely
+        let localOrders: Order[] = [];
         try {
-          const initMap: Record<string, Order> = {};
-          INITIAL_ORDERS.forEach((io) => {
-            initMap[io.id] = io;
-          });
-          set(ordersRef, initMap).catch(() => {});
+          const savedLocal = localStorage.getItem('sk_pizza_local_orders');
+          const savedMy = localStorage.getItem('sk_pizza_my_orders');
+          const l1: any[] = savedLocal ? JSON.parse(savedLocal) : [];
+          const l2: any[] = savedMy ? JSON.parse(savedMy) : [];
+          localOrders = [...l1, ...l2]
+            .map(normalizeOrder)
+            .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
         } catch {}
-      }
 
-      const sorted = Array.from(mergedMap.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+        // Build unified merged map: Cloud items are authoritative; recently created local orders are preserved
+        const mergedMap = new Map<string, Order>();
+        const nowMs = Date.now();
+        localOrders.forEach((lo) => {
+          if (lo && lo.id && !deletedIds.has(lo.id)) {
+            const age = nowMs - new Date(lo.createdAt).getTime();
+            // Preserve orders created in the last 15 minutes that might still be syncing
+            if (age < 15 * 60 * 1000) {
+              mergedMap.set(lo.id, lo);
+            }
+          }
+        });
+        cloudItems.forEach((co) => {
+          if (co && co.id && !deletedIds.has(co.id)) {
+            mergedMap.set(co.id, co);
+          }
+        });
 
-      // Save back to local storage
-      try {
-        localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
-      } catch {}
+        const sorted = Array.from(mergedMap.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
-      // Push any local orders missing in cloud up to Firebase RTDB so Admin sees them instantly
-      localOrders.forEach((lo) => {
-        if (lo && lo.id && !cloudItems.some((co) => co.id === lo.id)) {
-          set(ref(rtdb, `orders/${lo.id}`), lo).catch(() => {});
-        }
-      });
+        // Save back to local storage
+        try {
+          localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
+        } catch {}
 
-      // Detect newly arrived orders for voice & audio alerts
-      if (!initialOrdersLoadedRef.current) {
-        initialOrdersLoadedRef.current = true;
-        previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
-      } else {
-        const freshOrders = sorted.filter((o) => !previousOrderIdsRef.current.has(o.id));
-        if (freshOrders.length > 0) {
-          freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
-          const newest = freshOrders[0];
-          setLatestAlertOrder(newest);
-          // Start continuous repeating loud restaurant siren & vocal announcement in Hindi/English
-          soundAlerts.startContinuousOrderAlarm({
-            id: newest.id,
-            customerName: newest.customerName,
-            amount: newest.finalTotal,
-          });
-          showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
+        // Detect newly arrived orders for voice & audio alerts
+        if (!initialOrdersLoadedRef.current) {
+          initialOrdersLoadedRef.current = true;
+          previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
+        } else {
+          const freshOrders = sorted.filter((o) => !previousOrderIdsRef.current.has(o.id));
+          if (freshOrders.length > 0) {
+            freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
+            const newest = freshOrders[0];
+            setLatestAlertOrder(newest);
+            soundAlerts.startContinuousOrderAlarm({
+              id: newest.id,
+              customerName: newest.customerName,
+              amount: newest.finalTotal,
+            });
+            showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
 
-          // Browser Web Notification if permitted
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            try {
-              new Notification('🍕 New SK Pizza Point Order!', {
-                body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
-                icon: '/favicon.ico',
-              });
-            } catch {
-              // Ignore web notification error
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification('🍕 New SK Pizza Point Order!', {
+                  body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
+                  icon: '/favicon.ico',
+                });
+              } catch {}
             }
           }
         }
-      }
 
-      setOrders(sorted);
-    });
+        setOrders(sorted);
+      },
+      (error) => {
+        console.warn('Orders listener error:', error);
+      }
+    );
 
     // Subscribe to broadcasts
     const broadcastsRef = ref(rtdb, 'broadcasts');
@@ -1206,7 +1428,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateOrderStatus = useCallback(
     async (orderId: string, status: OrderStatus) => {
-      // Optimistic local state update
+      // 1. Optimistic local state update
       const now = new Date().toISOString();
       setOrders((prev) => {
         const next = prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: now } : o));
@@ -1218,22 +1440,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
         return next;
       });
+
+      // 2. Direct real-time cloud sync to Realtime Database
       try {
-        await updateCloudRecord('orders', orderId, {
+        await update(ref(rtdb, `orders/${orderId}`), {
           status,
           updatedAt: now,
         });
+
         const currentOrd = orders.find((o) => o.id === orderId);
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
-          await updateCloudRecord(`userOrders/${currentOrd.userId}`, orderId, {
+          await update(ref(rtdb, `userOrders/${currentOrd.userId}/${orderId}`), {
             status,
             updatedAt: now,
           }).catch(() => {});
         }
-        showToast(`Order ${orderId} status updated to "${status}"`, 'success');
+        showToast(`Order #${orderId} moved to "${status}"`, 'success');
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Update failed';
-        showToast(`Failed to update order in cloud: ${msg}`, 'error');
+        console.warn('Direct RTDB update error, attempting fallback:', err);
+        try {
+          await updateCloudRecord('orders', orderId, { status, updatedAt: now });
+          showToast(`Order #${orderId} moved to "${status}"`, 'success');
+        } catch {
+          showToast(`Order updated locally to "${status}"`, 'info');
+        }
       }
     },
     [orders, updateCloudRecord, showToast]
@@ -1306,28 +1536,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteOrder = useCallback(
     async (orderId: string) => {
+      // 1. Permanently record deletion in deletedOrderIds so it never resurrects
+      markOrderAsDeleted(orderId);
+
       const currentOrd = orders.find((o) => o.id === orderId);
-      // Optimistic local state update
+
+      // 2. Optimistic local state update
       setOrders((prev) => {
         const next = prev.filter((o) => o.id !== orderId);
-        try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
+        try {
+          localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100)));
+        } catch {}
         return next;
       });
+
       setMyOrders((prev) => {
         const next = prev.filter((o) => o.id !== orderId);
-        try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
+        try {
+          localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50)));
+        } catch {}
         return next;
       });
+
+      // 3. Remove directly from Firebase Realtime Database
       try {
-        await removeCloudRecord('orders', orderId);
+        await remove(ref(rtdb, `orders/${orderId}`));
+      } catch (e) {
+        console.warn('RTDB direct remove error:', e);
+      }
+
+      try {
+        await removeCloudRecord('orders', orderId).catch(() => {});
+      } catch (e) {
+        console.warn('removeCloudRecord error:', e);
+      }
+
+      // 4. Also remove from userOrders
+      try {
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
+          await remove(ref(rtdb, `userOrders/${currentOrd.userId}/${orderId}`)).catch(() => {});
           await removeCloudRecord(`userOrders/${currentOrd.userId}`, orderId).catch(() => {});
         }
-        showToast(`Order ${orderId} deleted from cloud`, 'info');
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Delete failed';
-        showToast(`Failed to delete order: ${msg}`, 'error');
-      }
+      } catch {}
+
+      showToast(`Order #${orderId} deleted permanently`, 'info');
     },
     [orders, removeCloudRecord, showToast]
   );

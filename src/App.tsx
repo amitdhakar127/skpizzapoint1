@@ -97,7 +97,12 @@ const AppContent: React.FC = () => {
 
   if (isAdminRoute || isAdminLoginRoute) {
     return (
-      <ErrorBoundary fallbackTitle="Admin Section Safe Mode" fallbackMessage="Admin panel view protected. Your orders and menu settings are securely saved.">
+      <ErrorBoundary
+        key={currentPath}
+        resetKey={currentPath}
+        fallbackTitle="Admin Section Safe Mode"
+        fallbackMessage="Admin panel view protected. Your orders and menu settings are securely saved."
+      >
         <div className="min-h-screen bg-[#FDFBF7] text-[#1E1915]">
           <GlobalSirenAlertBanner />
           {renderCurrentPage()}
@@ -115,9 +120,14 @@ const AppContent: React.FC = () => {
       {/* Top navigation header */}
       <Header />
 
-      {/* Main page view protected by ErrorBoundary */}
+      {/* Main page view protected by ErrorBoundary with auto-recovery per route */}
       <main className="flex-1 pb-16">
-        <ErrorBoundary fallbackTitle="Page Content Safe Mode" fallbackMessage="The page layout and navigation remain fully intact. Your session and orders are safe.">
+        <ErrorBoundary
+          key={currentPath}
+          resetKey={currentPath}
+          fallbackTitle="Page Content Safe Mode"
+          fallbackMessage="The page layout and navigation remain fully intact. Your session and orders are safe."
+        >
           {renderCurrentPage()}
         </ErrorBoundary>
       </main>
@@ -126,9 +136,15 @@ const AppContent: React.FC = () => {
       <Footer />
 
       {/* Global Overlays & Utilities */}
-      <BroadcastAlertBanner />
-      <CartDrawer />
-      <ProductDetailModal />
+      <ErrorBoundary fallbackTitle="Notification Alert Protected">
+        <BroadcastAlertBanner />
+      </ErrorBoundary>
+      <ErrorBoundary fallbackTitle="Cart Drawer Protected">
+        <CartDrawer />
+      </ErrorBoundary>
+      <ErrorBoundary fallbackTitle="Product Modal Protected">
+        <ProductDetailModal />
+      </ErrorBoundary>
       <FloatingWhatsApp />
       <ToastContainer />
     </div>

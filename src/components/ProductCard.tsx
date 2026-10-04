@@ -10,13 +10,16 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetails }) => {
   const { addToCart, formatPrice, isFavorite, toggleFavorite, setActiveProductModal, navigate } = useApp();
-  const [selectedSize, setSelectedSize] = useState<PizzaSize | 'Standard'>(product.sizes[0]?.size || 'Small');
+  const safeSizes = Array.isArray(product?.sizes) && product.sizes.length > 0
+    ? product.sizes
+    : [{ size: 'Small' as const, price: 99 }];
+  const [selectedSize, setSelectedSize] = useState<PizzaSize | 'Standard'>(safeSizes[0]?.size || 'Small');
   const [quantity, setQuantity] = useState(1);
   const [imgError, setImgError] = useState(false);
 
-  const selectedSizeObj = product.sizes.find((s) => s.size === selectedSize) || product.sizes[0];
+  const selectedSizeObj = safeSizes.find((s) => s.size === selectedSize) || safeSizes[0];
   const currentPrice = selectedSizeObj ? selectedSizeObj.price : 0;
-  const isFav = isFavorite(product.id);
+  const isFav = isFavorite(product?.id || '');
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,14 +133,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetails
         </div>
 
         {/* Size Selection Tabs (if product has multiple sizes like Pizzas) */}
-        {product.sizes.length > 1 ? (
+        {safeSizes.length > 1 ? (
           <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between text-xs text-[#55473E] font-medium">
               <span>Select Size:</span>
               <span className="text-amber-800 font-bold">{selectedSize}</span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-amber-50/70 border border-amber-200/60">
-              {product.sizes.map((s) => {
+              {safeSizes.map((s) => {
                 const isSelected = selectedSize === s.size;
                 return (
                   <button

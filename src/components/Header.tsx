@@ -124,7 +124,7 @@ export const Header: React.FC = () => {
             >
               <ShoppingBag className="w-4 h-4 text-amber-700" />
               <span>My Orders</span>
-              {myOrders.length > 0 && (
+              {myOrders && myOrders.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
                   {myOrders.length}
                 </span>
@@ -242,7 +242,7 @@ export const Header: React.FC = () => {
               title="My Orders"
             >
               <ShoppingBag className="w-4 h-4 text-amber-700" />
-              {myOrders.length > 0 && (
+              {myOrders && myOrders.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 font-black text-[9px] flex items-center justify-center shadow">
                   {myOrders.length}
                 </span>

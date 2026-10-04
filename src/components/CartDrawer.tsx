@@ -92,7 +92,8 @@ export const CartDrawer: React.FC = () => {
           ) : (
             cart.map((item) => {
               const product = products.find((p) => p.id === item.productId);
-              const hasMultipleSizes = product && product.sizes.length > 1;
+              const pSizes = product && Array.isArray(product.sizes) ? product.sizes : [];
+              const hasMultipleSizes = pSizes.length > 1;
               const addOnsPrice = item.selectedAddOns.reduce((acc, a) => acc + a.price, 0);
               const itemTotal = (item.unitPrice + addOnsPrice) * item.quantity;
 
@@ -127,7 +128,7 @@ export const CartDrawer: React.FC = () => {
                         <div className="mt-1 flex items-center gap-1.5">
                           <span className="text-[11px] text-[#6B5B4F] font-semibold">Size:</span>
                           <div className="flex items-center gap-1">
-                            {product?.sizes.map((s) => (
+                            {pSizes.map((s) => (
                               <button
                                 key={s.size}
                                 onClick={() => updateCartItemSize(item.id, s.size as PizzaSize)}

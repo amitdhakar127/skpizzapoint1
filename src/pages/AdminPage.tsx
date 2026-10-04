@@ -220,21 +220,59 @@ const AdminPageInternal: React.FC = () => {
   }).length;
 
   const isOrderMatchingFilter = (ord: Order, filter: string) => {
-    if (filter === 'all') return true;
+    if (!ord) return false;
+    const f = (filter || 'all').toLowerCase().trim();
+    if (f === 'all') return true;
+
     const s = (ord.status || '').toLowerCase().trim();
-    const f = filter.toLowerCase().trim();
+    const type = (ord.orderType || '').toLowerCase().trim();
+
+    // 1. Pending (New orders)
     if (f === 'pending') {
-      return s.includes('pending') || s.includes('received') || s.includes('whatsapp') || s === 'draft';
+      return (
+        s === 'pending' ||
+        s === 'received' ||
+        s === 'draft' ||
+        s === 'new' ||
+        s.includes('whatsapp')
+      );
     }
-    if (f === 'preparing') {
-      return s.includes('prep') || s.includes('confirm') || s.includes('ready');
+
+    // 2. In Process (Preparing / Baking)
+    if (f === 'process' || f === 'preparing' || f === 'processing') {
+      return (
+        s === 'preparing' ||
+        s.includes('prep') ||
+        s.includes('baking') ||
+        s.includes('process') ||
+        s.includes('oven')
+      );
     }
-    if (f === 'out for delivery') {
-      return (s.includes('out') || s.includes('delivery')) && !s.includes('delivered');
+
+    // 3. Self Pickup
+    if (f === 'pickup' || f === 'ready for pickup') {
+      if (s === 'ready for pickup' || s.includes('pickup')) return true;
+      if (type === 'pickup' && s !== 'delivered' && s !== 'completed' && s !== 'cancelled') {
+        return true;
+      }
+      return false;
     }
-    if (f === 'delivered') {
-      return s.includes('deliver') || s.includes('completed');
+
+    // 4. Out for Delivery
+    if (f === 'out_for_delivery' || f === 'out for delivery' || f === 'out') {
+      return s === 'out for delivery' || (s.includes('out') && s !== 'delivered' && s !== 'completed');
     }
+
+    // 5. Completed / Delivered
+    if (f === 'completed' || f === 'delivered' || f === 'complete') {
+      return s === 'delivered' || s === 'completed' || s === 'done';
+    }
+
+    // 6. Cancelled
+    if (f === 'cancelled' || f === 'cancel') {
+      return s.includes('cancel');
+    }
+
     return s === f;
   };
 
@@ -1129,24 +1167,36 @@ const AdminPageInternal: React.FC = () => {
 
               {/* Status Filter Tabs & View Mode Switcher */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-thin">
                   {[
-                    { id: 'all', label: `All Orders (${orders.length})` },
-                    { id: 'Pending', label: `Pending (${orders.filter((o) => isOrderMatchingFilter(o, 'Pending')).length})` },
-                    { id: 'Preparing', label: `Preparing (${orders.filter((o) => isOrderMatchingFilter(o, 'Preparing')).length})` },
-                    { id: 'Out for delivery', label: `Out for Delivery (${orders.filter((o) => isOrderMatchingFilter(o, 'Out for delivery')).length})` },
-                    { id: 'Delivered', label: `Delivered (${orders.filter((o) => isOrderMatchingFilter(o, 'Delivered')).length})` },
+                    { id: 'all', label: 'All Orders', count: orders.length, icon: '📋' },
+                    { id: 'pending', label: 'Pending / New', count: orders.filter((o) => isOrderMatchingFilter(o, 'pending')).length, icon: '📝' },
+                    { id: 'process', label: 'In Process', count: orders.filter((o) => isOrderMatchingFilter(o, 'process')).length, icon: '🍕' },
+                    { id: 'pickup', label: 'Self Pickup', count: orders.filter((o) => isOrderMatchingFilter(o, 'pickup')).length, icon: '🛍️' },
+                    { id: 'out_for_delivery', label: 'Out for Delivery', count: orders.filter((o) => isOrderMatchingFilter(o, 'out_for_delivery')).length, icon: '🛵' },
+                    { id: 'completed', label: 'Completed', count: orders.filter((o) => isOrderMatchingFilter(o, 'completed')).length, icon: '✅' },
+                    { id: 'cancelled', label: 'Cancelled', count: orders.filter((o) => isOrderMatchingFilter(o, 'cancelled')).length, icon: '❌' },
                   ].map((flt) => (
                     <button
                       key={flt.id}
                       onClick={() => setOrderFilterStatus(flt.id)}
-                      className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                         orderFilterStatus === flt.id
-                          ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                          ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-2 ring-amber-400/40'
                           : 'bg-white text-[#55473E] hover:bg-amber-50 border border-amber-200'
                       }`}
                     >
-                      {flt.label}
+                      <span>{flt.icon}</span>
+                      <span>{flt.label}</span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          orderFilterStatus === flt.id
+                            ? 'bg-slate-950 text-amber-400'
+                            : 'bg-neutral-100 text-neutral-700'
+                        }`}
+                      >
+                        {flt.count}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1278,26 +1328,42 @@ const AdminPageInternal: React.FC = () => {
                                 <select
                                   value={order.status}
                                   onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
-                                  className="px-2 py-1 rounded-lg border border-amber-300 bg-white text-[11px] font-bold text-[#1E1915] focus:outline-none"
+                                  className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-[#1E1915] focus:outline-none cursor-pointer"
                                 >
                                   <option value="Pending">📝 Pending</option>
-                                  <option value="Preparing">🍕 Preparing</option>
+                                  <option value="Preparing">🍕 In Process (Baking)</option>
+                                  <option value="Ready for Pickup">🛍️ Ready for Pickup</option>
                                   <option value="Out for delivery">🛵 Out for Delivery</option>
-                                  <option value="Delivered">✅ Delivered</option>
+                                  <option value="Delivered">✅ Completed</option>
                                   <option value="Cancelled">❌ Cancelled</option>
                                 </select>
                               </td>
                               <td className="p-3.5 text-right whitespace-nowrap">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedOrderForModal(order);
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-xs inline-flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
-                                >
-                                  <span>🗺️ Details & Map</span>
-                                </button>
+                                <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedOrderForModal(order)}
+                                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-xs inline-flex items-center gap-1 cursor-pointer transition-transform active:scale-95"
+                                    title="View Order Details & Map"
+                                  >
+                                    <span>🗺️ Details</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDeleteConfirmTarget({
+                                        id: order.id,
+                                        name: `Order #${order.id} (${order.customerName} - ${formatPrice(order.finalTotal)})`,
+                                        type: 'order',
+                                      })
+                                    }
+                                    className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs inline-flex items-center gap-1 transition-all active:scale-95 shadow-xs cursor-pointer"
+                                    title="Delete Order Permanently"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1311,13 +1377,10 @@ const AdminPageInternal: React.FC = () => {
                   {sortedOrders
                     .filter((ord) => isOrderMatchingFilter(ord, orderFilterStatus))
                     .map((order) => {
-                      const primaryStatuses: OrderStatus[] = [
-                        'Pending',
-                        'Preparing',
-                        'Out for delivery',
-                        'Delivered',
-                        'Cancelled',
-                      ];
+                      const primaryStatuses: OrderStatus[] =
+                        order.orderType === 'pickup'
+                          ? ['Pending', 'Preparing', 'Ready for Pickup', 'Delivered', 'Cancelled']
+                          : ['Pending', 'Preparing', 'Out for delivery', 'Delivered', 'Cancelled'];
 
                       return (
                         <div
@@ -1334,6 +1397,9 @@ const AdminPageInternal: React.FC = () => {
                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
                                   {order.status}
                                 </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-neutral-100 text-[#55473E]">
+                                  {order.orderType === 'pickup' ? '🛍️ Pickup' : '🛵 Delivery'}
+                                </span>
                               </div>
                               <p className="text-xs text-[#8A7B70] mt-0.5">
                                 Placed on {new Date(order.createdAt).toLocaleString()}
@@ -1342,7 +1408,7 @@ const AdminPageInternal: React.FC = () => {
 
                             {/* Status Quick Updater Buttons */}
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-bold text-[#55473E] mr-1">Status:</span>
+                              <span className="text-xs font-bold text-[#55473E] mr-1">Move To:</span>
                               {primaryStatuses.map((st) => (
                                 <button
                                   key={st}
@@ -1357,11 +1423,13 @@ const AdminPageInternal: React.FC = () => {
                                   {st === 'Pending'
                                     ? '📝 Pending'
                                     : st === 'Preparing'
-                                    ? '🍕 Preparing'
+                                    ? '🍕 In Process'
+                                    : st === 'Ready for Pickup'
+                                    ? '🛍️ Pickup Ready'
                                     : st === 'Out for delivery'
                                     ? '🛵 Out for Delivery'
                                     : st === 'Delivered'
-                                    ? '✅ Delivered'
+                                    ? '✅ Completed'
                                     : '❌ Cancelled'}
                                 </button>
                               ))}
@@ -2854,49 +2922,69 @@ const AdminPageInternal: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: SAFE DELETE CONFIRMATION MODAL (PREVENTS ACCIDENTAL DELETION) */}
+      {/* MODAL 3: PREMIUM SAFE DELETE CONFIRMATION MODAL */}
       {deleteConfirmTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-red-200 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-6 h-6 text-rose-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="relative bg-[#1A1410] border-2 border-rose-500/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-[0_25px_60px_rgba(0,0,0,0.9)] space-y-5 overflow-hidden">
+            {/* Top ambient glow */}
+            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-32 bg-rose-500/20 blur-3xl rounded-full pointer-events-none" />
+
+            <div className="flex items-center gap-3.5 relative z-10">
+              <div className="w-13 h-13 rounded-2xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-center shrink-0 shadow-inner">
+                <AlertTriangle className="w-7 h-7 text-rose-400 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-black text-lg text-[#1E1915]">Confirm Deletion</h3>
-                <p className="text-xs text-[#6B5B4F]">Permission required before removing from cloud</p>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    Permanent Action
+                  </span>
+                  <span className="text-[10px] uppercase font-bold text-neutral-400">
+                    {deleteConfirmTarget.type}
+                  </span>
+                </div>
+                <h3 className="font-black text-xl text-white mt-0.5">Confirm Permanent Deletion</h3>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs text-[#55473E] space-y-2">
-              <p>
-                Are you sure you want to permanently delete this item?
+            <div className="p-4 rounded-2xl bg-[#231B15] border border-neutral-800 text-xs text-neutral-300 space-y-3 relative z-10">
+              <p className="text-neutral-300 font-medium">
+                Are you sure you want to permanently delete this {deleteConfirmTarget.type}?
               </p>
-              <div className="p-2 rounded-xl bg-white border border-amber-200 font-extrabold text-[#1E1915] text-sm break-all">
+              <div className="p-3 rounded-xl bg-[#120D0A] border border-amber-500/20 font-black text-amber-300 text-sm break-all font-mono">
                 {deleteConfirmTarget.name}
               </div>
-              <p className="text-[11px] text-rose-700">
-                ⚠️ Confirming will immediately remove this item from your live cloud database and customer website.
+              <p className="text-[11px] text-rose-400 font-semibold flex items-center gap-1.5">
+                <span>⚠️</span>
+                <span>This item will be immediately removed from Realtime Database and will never reappear.</span>
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-2 relative z-10">
               <button
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setDeleteConfirmTarget(null)}
-                className="px-4 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-[#1E1915] font-bold text-xs transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                Cancel
+                Cancel / Keep
               </button>
               <button
                 type="button"
                 disabled={isDeleting}
                 onClick={handleExecuteDelete}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xs shadow-md shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 hover:from-rose-500 hover:to-red-600 active:scale-95 text-white font-black text-xs shadow-lg shadow-rose-900/40 ring-2 ring-rose-400/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>{isDeleting ? 'Deleting from Cloud...' : 'Confirm Delete'}</span>
+                {isDeleting ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 animate-spin text-white" />
+                    <span>Deleting from Cloud...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 text-white" />
+                    <span>Yes, Confirm Delete</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -3044,8 +3132,16 @@ const AdminPageInternal: React.FC = () => {
       {/* MODAL 4: COMPREHENSIVE ORDER DETAIL & LIVE ROUTE MAP MODAL */}
       {selectedOrderForModal && (
         <AdminOrderDetailModal
-          order={selectedOrderForModal}
+          order={orders.find((o) => o.id === selectedOrderForModal.id) || selectedOrderForModal}
           onClose={() => setSelectedOrderForModal(null)}
+          onDeleteOrder={(ord) => {
+            setSelectedOrderForModal(null);
+            setDeleteConfirmTarget({
+              id: ord.id,
+              name: `Order #${ord.id} (${ord.customerName} - ${formatPrice(ord.finalTotal)})`,
+              type: 'order',
+            });
+          }}
         />
       )}
     </div>

@@ -46,6 +46,7 @@ export type OrderStatus =
   | 'Pending'
   | 'Preparing'
   | 'Out for delivery'
+  | 'Ready for Pickup'
   | 'Delivered'
   | 'Cancelled'
   | 'Awaiting WhatsApp submission'

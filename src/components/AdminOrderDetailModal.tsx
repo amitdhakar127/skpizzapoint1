@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Navigation,
+  Trash2,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { InteractiveLiveMap } from './InteractiveLiveMap';
@@ -28,9 +29,10 @@ import { ErrorBoundary } from './ErrorBoundary';
 interface AdminOrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
+  onDeleteOrder?: (order: Order) => void;
 }
 
-const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ order, onClose }) => {
+const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ order, onClose, onDeleteOrder }) => {
   const {
     updateOrderStatus,
     updateOrderPaymentStatus,
@@ -45,13 +47,10 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
 
   if (!order) return null;
 
-  const primaryStatuses: OrderStatus[] = [
-    'Pending',
-    'Preparing',
-    'Out for delivery',
-    'Delivered',
-    'Cancelled',
-  ];
+  const primaryStatuses: OrderStatus[] =
+    order.orderType === 'pickup'
+      ? ['Pending', 'Preparing', 'Ready for Pickup', 'Delivered', 'Cancelled']
+      : ['Pending', 'Preparing', 'Out for delivery', 'Delivered', 'Cancelled'];
 
   // Rider Live GPS broadcasting toggle
   const toggleRiderGps = () => {
@@ -165,9 +164,10 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                   }`}
                 >
                   {st === 'Pending' && '📝 Pending'}
-                  {st === 'Preparing' && '🍕 Preparing'}
+                  {st === 'Preparing' && '🍕 In Process'}
+                  {st === 'Ready for Pickup' && '🛍️ Ready for Pickup'}
                   {st === 'Out for delivery' && '🛵 Out for Delivery'}
-                  {st === 'Delivered' && '✅ Delivered'}
+                  {st === 'Delivered' && '✅ Completed'}
                   {st === 'Cancelled' && '❌ Cancelled'}
                 </button>
               ))}
@@ -374,16 +374,30 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-neutral-100 border-t border-neutral-200 flex items-center justify-between">
-          <a
-            href={generateWhatsAppUrl(order)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-black text-xs flex items-center gap-1.5 transition-colors shadow-xs"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>Send WhatsApp Receipt</span>
-          </a>
+        <div className="p-4 bg-neutral-100 border-t border-neutral-200 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <a
+              href={generateWhatsAppUrl(order)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-black text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Send WhatsApp Receipt</span>
+            </a>
+
+            {onDeleteOrder && (
+              <button
+                type="button"
+                onClick={() => onDeleteOrder(order)}
+                className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
+                title="Delete this order permanently"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Delete Order</span>
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
