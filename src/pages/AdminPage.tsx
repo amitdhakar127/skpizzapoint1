@@ -49,6 +49,8 @@ import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { soundAlerts } from '../lib/soundAlerts';
+import { rtdb } from '../lib/firebase';
+import { ref, set } from 'firebase/database';
 import {
   acquireLiveLocation,
   RESTAURANT_COORDINATES,
@@ -156,6 +158,9 @@ const AdminPageInternal: React.FC = () => {
         setAdminLiveLoc(res.location);
         try {
           localStorage.setItem('sk_admin_live_location', JSON.stringify(res.location));
+          if (rtdb) {
+            set(ref(rtdb, 'system/adminLiveLocation'), res.location).catch(() => {});
+          }
         } catch {}
         setAdminLocStatus('');
         setIsAdminLocating(false);

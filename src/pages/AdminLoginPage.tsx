@@ -8,16 +8,13 @@ import {
   EyeOff,
   AlertCircle,
   CheckCircle2,
-  ShieldAlert,
   Loader2,
-  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AdminLoginPage: React.FC = () => {
   const {
     loginAdminWithFirebase,
-    loginAdminWithPasscode,
     currentUser,
     isAdmin,
     authorizedAdminUid,
@@ -27,8 +24,6 @@ export const AdminLoginPage: React.FC = () => {
     settings,
   } = useApp();
 
-  const [loginMode, setLoginMode] = useState<'passcode' | 'firebase'>('firebase');
-  const [passcode, setPasscode] = useState('');
   const [email, setEmail] = useState('zyvoraofficial3@gmail.com');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -48,7 +43,7 @@ export const AdminLoginPage: React.FC = () => {
           <div className="space-y-1.5">
             <h1 className="text-2xl font-black text-[#1E1915]">Administrator Verified</h1>
             <p className="text-xs text-[#6B5B4F]">
-              Logged in as <strong className="text-[#1E1915]">{currentUser?.email || 'Passcode Authorized Partner'}</strong>
+              Logged in as <strong className="text-[#1E1915]">{currentUser?.email || 'Authorized Administrator'}</strong>
             </p>
           </div>
 
@@ -71,20 +66,6 @@ export const AdminLoginPage: React.FC = () => {
       </div>
     );
   }
-
-  const handlePasscodeLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passcode.trim()) {
-      setErrorMessage('Please enter the Admin Passcode.');
-      return;
-    }
-    const success = loginAdminWithPasscode(passcode);
-    if (success) {
-      navigate('/admin');
-    } else {
-      setErrorMessage('Incorrect passcode. Please enter valid restaurant passcode.');
-    }
-  };
 
   const handleFirebaseLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,41 +125,6 @@ export const AdminLoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab switcher: Firebase Email Login (Primary) vs Passcode PIN */}
-        <div className="flex rounded-2xl bg-amber-100/70 p-1 border border-amber-200">
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode('firebase');
-              setErrorMessage(null);
-            }}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              loginMode === 'firebase'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-amber-900 hover:bg-amber-200/50'
-            }`}
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>Email Sign In</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setLoginMode('passcode');
-              setErrorMessage(null);
-            }}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              loginMode === 'passcode'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-amber-900 hover:bg-amber-200/50'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>Passcode PIN</span>
-          </button>
-        </div>
-
         {errorMessage && (
           <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2.5 text-xs font-semibold animate-shake">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -193,50 +139,8 @@ export const AdminLoginPage: React.FC = () => {
           </div>
         )}
 
-        {loginMode === 'passcode' ? (
-          /* FAST PASSCODE PIN LOGIN */
-          <form onSubmit={handlePasscodeLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
-                Restaurant Admin PIN / Passcode
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="Enter Passcode (e.g. admin123)"
-                  value={passcode}
-                  onChange={(e) => {
-                    setPasscode(e.target.value);
-                    setErrorMessage(null);
-                  }}
-                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-amber-200 bg-neutral-50/50 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-[11px] text-neutral-500">
-                Default APK Passcode: <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-bold">admin123</code>
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>Enter Admin Dashboard</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-        ) : (
-          /* FIREBASE ACCOUNT LOGIN */
-          <form onSubmit={handleFirebaseLogin} className="space-y-4">
+        {/* FIREBASE EMAIL & PASSWORD LOGIN */}
+        <form onSubmit={handleFirebaseLogin} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
                 Administrator Email
@@ -314,7 +218,6 @@ export const AdminLoginPage: React.FC = () => {
               )}
             </button>
           </form>
-        )}
 
         {/* Security Notice */}
         <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-[#6B5B4F] space-y-1">

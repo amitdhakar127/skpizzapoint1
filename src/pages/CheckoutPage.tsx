@@ -28,6 +28,7 @@ import {
   calculateDistanceKm,
   estimateEtaMinutes,
   RESTAURANT_COORDINATES,
+  STORE_GOOGLE_MAPS_URL,
 } from '../lib/locationService';
 
 export const CheckoutPage: React.FC = () => {
@@ -521,6 +522,31 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Store Pickup Location Information */}
+            {orderType === 'pickup' && (
+              <div className="p-4 rounded-3xl bg-amber-500/10 border-2 border-amber-300 space-y-3 animate-fade-in text-xs shadow-sm">
+                <div className="flex items-center gap-2 text-amber-950 font-black">
+                  <Compass className="w-4 h-4 text-amber-600" />
+                  <span className="uppercase tracking-wide">Store Pickup Counter (SK Pizza Point)</span>
+                </div>
+                <p className="text-[#55473E] font-medium leading-relaxed">
+                  {settings.address || 'SK Pizza Point, Badagoan Rd, Khureiri, Gwalior, Madhya Pradesh 474006'}
+                </p>
+                <div className="pt-1">
+                  <a
+                    href={settings.googleMapsUrl || STORE_GOOGLE_MAPS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black transition-all text-xs shadow-md"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>Open Store in Google Maps</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            )}
 
             {/* Address fields only for Delivery */}
             {orderType === 'delivery' && (

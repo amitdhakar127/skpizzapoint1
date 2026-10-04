@@ -1663,13 +1663,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundAlerts.stopContinuousAlarm();
   }, []);
 
-  // WhatsApp pre-filled message generator with Live GPS Link and Live Tracker Link
+  // WhatsApp pre-filled message generator with Live GPS Link, System Tracker Link, and Store Google Maps Link
   const generateWhatsAppUrl = useCallback(
     (order: Order): string => {
-      const itemsList = order.items
+      const itemsList = (order.items || [])
         .map((item) => {
-          const addOnText = item.addOns.length > 0 ? ` (+${item.addOns.join(', ')})` : '';
-          return `• ${item.productName} — ${item.size} × ${item.quantity} — ₹${item.totalPrice}${addOnText}`;
+          const addOns = Array.isArray(item.addOns) ? item.addOns : [];
+          const addOnText = addOns.length > 0 ? ` (+${addOns.join(', ')})` : '';
+          return `• ${item.productName || 'Pizza'} — ${item.size || 'Regular'} × ${item.quantity || 1} — ₹${item.totalPrice || 0}${addOnText}`;
         })
         .join('\n');
 
@@ -1687,13 +1688,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const locationSection =
         order.customerLocation?.latitude && order.customerLocation?.longitude
-          ? `\n📍 *Live GPS Link:* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Coordinates: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
+          ? `\n📍 *Customer Current Location (Google Maps):* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Pin: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
           : '';
 
-      const trackerSection =
-        typeof window !== 'undefined'
-          ? `\n🗺️ *Live Order & Rider Tracking Link:* ${window.location.origin}/#track-${order.id}`
-          : '';
+      const origin =
+        typeof window !== 'undefined' && window.location.origin
+          ? window.location.origin
+          : 'https://sk-pizza-point.web.app';
+
+      const trackerSection = `\n🗺️ *Live Order & GPS Tracker Link:* ${origin}/#track-${order.id}`;
+
+      const storeLocationUrl =
+        settings.googleMapsUrl || 'https://maps.app.goo.gl/ahwPDzJqRtSEXVYb8?g_st=ac';
+      const storeSection = `\n🏪 *SK Pizza Point Store Location:* ${storeLocationUrl}`;
 
       const instructionsSection = order.instructions ? `\nInstructions: ${order.instructions}` : '';
 
@@ -1702,7 +1709,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 *Order ID:* ${order.id}
 *Customer Name:* ${order.customerName}
 *Phone:* ${order.customerPhone}
-*Order Type:* ${order.orderType === 'delivery' ? 'Home Delivery' : 'Store Pickup'}${addressSection}${locationSection}
+*Order Type:* ${order.orderType === 'delivery' ? 'Home Delivery' : 'Store Pickup'}${addressSection}${locationSection}${trackerSection}${storeSection}
 
 *Items:*
 ${itemsList}
@@ -1710,14 +1717,14 @@ ${itemsList}
 *Subtotal:* ₹${order.subtotal}
 *Delivery:* ${deliveryText}
 *Discount:* ₹${order.discount}
-*Total:* ₹${order.finalTotal}${instructionsSection}${trackerSection}
+*Total:* ₹${order.finalTotal}${instructionsSection}
 
 _Please confirm this order and its preparation status._`;
 
-      const cleanPhone = settings.whatsAppNumber.replace(/[^0-9]/g, '');
+      const cleanPhone = (settings.whatsAppNumber || '+919617142439').replace(/[^0-9]/g, '');
       return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(rawMessage)}`;
     },
-    [settings.whatsAppNumber, settings.deliveryFeeNote]
+    [settings.whatsAppNumber, settings.deliveryFeeNote, settings.googleMapsUrl]
   );
 
   // Generate 1-click status update WhatsApp notification for the customer
@@ -1727,27 +1734,35 @@ _Please confirm this order and its preparation status._`;
       const orderId = order.id;
       const customerName = order.customerName || 'Valued Customer';
       const origin =
-        typeof window !== 'undefined'
+        typeof window !== 'undefined' && window.location.origin
           ? window.location.origin
           : 'https://sk-pizza-point.web.app';
       const trackLink = `${origin}/#track-${orderId}`;
+      const storeLocationUrl =
+        settings.googleMapsUrl || 'https://maps.app.goo.gl/ahwPDzJqRtSEXVYb8?g_st=ac';
 
       if (newStatus === 'Preparing') {
-        statusMsg = `Hello ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n📍 Live Order Tracking: ${trackLink}\n\nExpected ready time: ~15-20 minutes!`;
+        statusMsg = `Hello ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n🗺️ Live Order Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nExpected ready time: ~15-20 minutes!`;
       } else if (newStatus === 'Out for delivery') {
-        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your pinned address.\n\n🗺️ Live GPS Tracking: ${trackLink}\n\nPlease keep your phone nearby!`;
+        const custGps =
+          order.customerLocation?.latitude && order.customerLocation?.longitude
+            ? `\n📍 Customer Delivery Pin: https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}`
+            : '';
+        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your address.${custGps}\n\n🗺️ Live GPS Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nPlease keep your phone nearby!`;
+      } else if (newStatus === 'Ready for Pickup') {
+        statusMsg = `Hello ${customerName}! 🛍️\n\nYour order *#${orderId}* is *READY FOR PICKUP* at our store!\nPlease visit the counter to collect your fresh, hot order.\n\n🏪 Store Location (Google Maps): ${storeLocationUrl}\n🗺️ Order Summary: ${trackLink}\n\nSee you soon at SK Pizza Point!`;
       } else if (newStatus === 'Delivered') {
-        statusMsg = `Hello ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n\nHave a great meal! 🍕❤️`;
+        statusMsg = `Hello ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n🏪 Store Location: ${storeLocationUrl}\n\nHave a great meal! 🍕❤️`;
       } else if (newStatus === 'Cancelled') {
-        statusMsg = `Hello ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.`;
+        statusMsg = `Hello ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.\n🏪 Store Location: ${storeLocationUrl}`;
       } else {
-        statusMsg = `Hello ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}`;
+        statusMsg = `Hello ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}\n🏪 Store: ${storeLocationUrl}`;
       }
 
       const cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');
       return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(statusMsg)}`;
     },
-    [settings.whatsAppNumber]
+    [settings.whatsAppNumber, settings.googleMapsUrl]
   );
 
   // Seed / Reload active demo orders into kitchen manager

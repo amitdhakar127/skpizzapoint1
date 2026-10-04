@@ -355,10 +355,19 @@ export const MyOrdersPage: React.FC = () => {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 hover:text-amber-950 underline mt-0.5"
                           >
-                            <span>📍 View Google Maps Pin</span>
+                            <span>📍 View Customer Google Maps Pin</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
+                        <a
+                          href={settings.googleMapsUrl || 'https://maps.app.goo.gl/ahwPDzJqRtSEXVYb8?g_st=ac'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-600 hover:text-amber-900 underline mt-0.5 block"
+                        >
+                          <span>🏪 Store Location (SK Pizza Point)</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
                     </div>
 

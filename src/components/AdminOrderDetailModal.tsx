@@ -23,7 +23,7 @@ import {
 import { Order, OrderStatus } from '../types';
 import { InteractiveLiveMap } from './InteractiveLiveMap';
 import { useApp } from '../context/AppContext';
-import { getGoogleMapsNavigationUrl } from '../lib/locationService';
+import { getGoogleMapsNavigationUrl, getGoogleMapsPinUrl, STORE_GOOGLE_MAPS_URL } from '../lib/locationService';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface AdminOrderDetailModalProps {
@@ -39,6 +39,7 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
     updateOrderLocation,
     formatPrice,
     generateWhatsAppUrl,
+    settings,
     showToast,
   } = useApp();
 
@@ -262,20 +263,57 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                   </h4>
                 </div>
 
-                {order.customerLocation && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {order.customerLocation && (
+                    <>
+                      <a
+                        href={order.customerLocation.googleMapsLink || getGoogleMapsPinUrl(order.customerLocation.latitude, order.customerLocation.longitude)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs inline-flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer"
+                        title="Open customer pinned location in Google Maps"
+                      >
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>📍 Customer Pin</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <a
+                        href={getGoogleMapsNavigationUrl(
+                          order.customerLocation.latitude,
+                          order.customerLocation.longitude
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer"
+                        title="Open Google Maps turn-by-turn navigation"
+                      >
+                        <Navigation className="w-3.5 h-3.5" />
+                        <span>🚗 Directions</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </>
+                  )}
                   <a
-                    href={getGoogleMapsNavigationUrl(
-                      order.customerLocation.latitude,
-                      order.customerLocation.longitude
-                    )}
+                    href={settings.googleMapsUrl || STORE_GOOGLE_MAPS_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs inline-flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer self-start sm:self-auto"
+                    className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-amber-300 font-bold text-xs inline-flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer border border-neutral-700"
+                    title="Open store Google Maps location"
                   >
-                    <Navigation className="w-3.5 h-3.5" />
-                    <span>🚗 Open Google Maps Navigation</span>
+                    <span>🏪 Store Location</span>
+                    <ExternalLink className="w-3 h-3" />
                   </a>
-                )}
+                  <a
+                    href={`/#track-${order.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer"
+                    title="Open live customer tracking view"
+                  >
+                    <span>🗺️ Live System Tracker</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
 
               {/* Leaflet Interactive Map View */}
