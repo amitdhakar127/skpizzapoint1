@@ -138,6 +138,7 @@ interface AppContextType {
   setActiveOrder: (order: Order | null) => void;
   generateWhatsAppUrl: (order: Order) => string;
   generateCustomerStatusWhatsAppUrl: (order: Order, status: OrderStatus) => string;
+  acceptOrderWithLiveLocation: (orderId: string, status?: OrderStatus) => Promise<void>;
   seedDemoOrders: () => Promise<void>;
 
   // Real-time Sound Alerts & Notifications
@@ -357,7 +358,7 @@ export const normalizePath = (rawPath: string): string => {
   return p;
 };
 
-// Permanently deleted orders set (ensures deleted orders never resurrect)
+// Permanently deleted orders set (ensures deleted orders never resurrect across devices)
 export const getDeletedOrderIds = (): Set<string> => {
   try {
     if (typeof window === 'undefined') return new Set();
@@ -374,6 +375,9 @@ export const markOrderAsDeleted = (orderId: string) => {
     const current = getDeletedOrderIds();
     current.add(orderId);
     localStorage.setItem('sk_pizza_deleted_orders', JSON.stringify(Array.from(current)));
+    if (rtdb) {
+      set(ref(rtdb, `system/deletedOrderIds/${orderId}`), true).catch(() => {});
+    }
   } catch {}
 };
 
@@ -457,7 +461,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<RestaurantSettings>(INITIAL_SETTINGS);
   const [gallery, setGallery] = useState<GalleryItem[]>(INITIAL_GALLERY);
   const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    return [];
+  });
+
+  // Helper to identify legacy demo orders that must never show
+  const isDemoRecord = (raw: any) => {
+    if (!raw) return true;
+    const id = String(raw.id || '');
+    const name = String(raw.customerName || '');
+    return (
+      id.startsWith('SKP-20260929-') ||
+      name === 'Vikram Singh' ||
+      name === 'Anjali Sharma' ||
+      name === 'Deepak Verma'
+    );
+  };
 
   // Device-level My Orders (Permanently persists user orders on this device whether logged in or guest)
   const [myOrders, setMyOrders] = useState<Order[]>(() => {
@@ -465,9 +484,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deletedIds = getDeletedOrderIds();
       const saved = typeof window !== 'undefined' ? localStorage.getItem('sk_pizza_my_orders') : null;
       const raw: any[] = saved ? JSON.parse(saved) : [];
-      return raw
+      const filtered = raw
         .map(normalizeOrder)
-        .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
+        .filter((o): o is Order => o !== null && !deletedIds.has(o.id) && !isDemoRecord(o));
+      try {
+        localStorage.setItem('sk_pizza_my_orders', JSON.stringify(filtered.slice(0, 50)));
+      } catch {}
+      return filtered;
     } catch {
       return [];
     }
@@ -483,22 +506,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const o2: any[] = savedMy ? JSON.parse(savedMy) : [];
       const mergedMap = new Map<string, Order>();
 
-      const isInitialized =
-        typeof window !== 'undefined' && localStorage.getItem('sk_pizza_orders_initialized') === 'true';
-      const seedList = !isInitialized && o1.length === 0 && o2.length === 0 ? INITIAL_ORDERS : [];
-      if (!isInitialized && typeof window !== 'undefined') {
-        localStorage.setItem('sk_pizza_orders_initialized', 'true');
-      }
-
-      [...seedList, ...o1, ...o2].forEach((raw) => {
+      [...o1, ...o2].forEach((raw) => {
         const o = normalizeOrder(raw);
-        if (o && !deletedIds.has(o.id)) mergedMap.set(o.id, o);
+        if (o && !deletedIds.has(o.id) && !isDemoRecord(o)) {
+          mergedMap.set(o.id, o);
+        }
       });
-      return Array.from(mergedMap.values()).sort(
+      const sorted = Array.from(mergedMap.values()).sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
+      try {
+        localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
+      } catch {}
+      return sorted;
     } catch {
-      return INITIAL_ORDERS.map(normalizeOrder).filter((o): o is Order => o !== null);
+      return [];
     }
   });
   const [broadcasts, setBroadcasts] = useState<BroadcastNotification[]>([]);
@@ -510,6 +532,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const initialOrdersLoadedRef = useRef(false);
   const previousOrderIdsRef = useRef<Set<string>>(new Set());
   const initialBroadcastsLoadedRef = useRef(false);
+  const acknowledgedAlarmOrderIdRef = useRef<string | null>(null);
+  const activeRiderWatchIdRef = useRef<number | null>(null);
 
   const [isCloudDbConnected, setIsCloudDbConnected] = useState<boolean>(false);
   const [cloudDbError, setCloudDbError] = useState<string | null>(null);
@@ -786,22 +810,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // Subscribe to reviews
+    // Subscribe to cloud deleted orders list (permanently synchronizes deletions across all devices)
+    const deletedOrdersRef = ref(rtdb, 'system/deletedOrderIds');
+    const unsubDeletedOrders = onValue(deletedOrdersRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const val = snapshot.val() || {};
+        const ids = Object.keys(val);
+        const local = getDeletedOrderIds();
+        ids.forEach((id) => local.add(id));
+        try {
+          localStorage.setItem('sk_pizza_deleted_orders', JSON.stringify(Array.from(local)));
+        } catch {}
+      }
+    });
+
+    // Subscribe to reviews (Real reviews only)
     const unsubReviews = onValue(
       reviewsRef,
       (snapshot) => {
         if (snapshot.exists()) {
           const val = snapshot.val();
-          const items: Review[] = Array.isArray(val)
+          const items: Review[] = (Array.isArray(val)
             ? val.filter(Boolean)
-            : Object.keys(val || {}).map((k) => val[k]);
+            : Object.keys(val || {}).map((k) => val[k])
+          ).filter((r: Review) => {
+            if (!r || !r.id) return false;
+            const dummyReviewIds = new Set(['rev-1', 'rev-2', 'rev-3', 'rev-demo-1', 'rev-demo-2']);
+            return !dummyReviewIds.has(r.id) && !(r as any).isDemo;
+          });
           setReviews(items);
         } else {
-          const revMap: Record<string, Review> = {};
-          INITIAL_REVIEWS.forEach((r) => {
-            revMap[r.id] = r;
-          });
-          set(reviewsRef, revMap).catch(() => {});
+          setReviews([]);
         }
       },
       (error) => {
@@ -822,7 +861,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : Object.keys(val || {}).map((k) => val[k]);
           cloudItems = rawList
             .map(normalizeOrder)
-            .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
+            .filter((o): o is Order => o !== null && !deletedIds.has(o.id) && !isDemoRecord(o));
+        }
+
+        // Clean up any deleted orders from local storage
+        if (deletedIds.size > 0) {
+          try {
+            const savedLocal = localStorage.getItem('sk_pizza_local_orders');
+            if (savedLocal) {
+              const parsed: any[] = JSON.parse(savedLocal);
+              const cleaned = parsed.filter((o) => o && !deletedIds.has(o.id));
+              localStorage.setItem('sk_pizza_local_orders', JSON.stringify(cleaned));
+            }
+            const savedMy = localStorage.getItem('sk_pizza_my_orders');
+            if (savedMy) {
+              const parsed: any[] = JSON.parse(savedMy);
+              const cleaned = parsed.filter((o) => o && !deletedIds.has(o.id));
+              localStorage.setItem('sk_pizza_my_orders', JSON.stringify(cleaned));
+            }
+          } catch {}
         }
 
         // Read local storage orders to merge safely
@@ -834,23 +891,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const l2: any[] = savedMy ? JSON.parse(savedMy) : [];
           localOrders = [...l1, ...l2]
             .map(normalizeOrder)
-            .filter((o): o is Order => o !== null && !deletedIds.has(o.id));
+            .filter((o): o is Order => o !== null && !deletedIds.has(o.id) && !isDemoRecord(o));
         } catch {}
 
         // Build unified merged map: Cloud items are authoritative; recently created local orders are preserved
         const mergedMap = new Map<string, Order>();
         const nowMs = Date.now();
         localOrders.forEach((lo) => {
-          if (lo && lo.id && !deletedIds.has(lo.id)) {
+          if (lo && lo.id && !deletedIds.has(lo.id) && !isDemoRecord(lo)) {
             const age = nowMs - new Date(lo.createdAt).getTime();
-            // Preserve orders created in the last 15 minutes that might still be syncing
-            if (age < 15 * 60 * 1000) {
+            // Preserve orders created in the last 2 minutes that might still be syncing
+            if (age < 2 * 60 * 1000) {
               mergedMap.set(lo.id, lo);
             }
           }
         });
         cloudItems.forEach((co) => {
-          if (co && co.id && !deletedIds.has(co.id)) {
+          if (co && co.id && !deletedIds.has(co.id) && !isDemoRecord(co)) {
             mergedMap.set(co.id, co);
           }
         });
@@ -864,15 +921,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
         } catch {}
 
-        // Detect newly arrived orders for voice & audio alerts
+        // Check for unaccepted pending orders created recently
+        const pendingOrders = sorted.filter((o) => {
+          const s = (o.status || '').toLowerCase().trim();
+          return (s.includes('pending') || s.includes('received') || s === 'draft') && !isDemoRecord(o);
+        });
+
+        // Detect newly arrived orders or active pending orders for voice & audio alerts
         if (!initialOrdersLoadedRef.current) {
           initialOrdersLoadedRef.current = true;
           previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
+
+          // If there is any unaccepted pending order when admin opens, sound continuous alarm!
+          if (pendingOrders.length > 0) {
+            const newest = pendingOrders[0];
+            const ageMs = nowMs - new Date(newest.createdAt).getTime();
+            if (ageMs < 60 * 60 * 1000 && acknowledgedAlarmOrderIdRef.current !== newest.id) {
+              setLatestAlertOrder(newest);
+              soundAlerts.startContinuousOrderAlarm({
+                id: newest.id,
+                customerName: newest.customerName,
+                amount: newest.finalTotal,
+              });
+              showToast(`🚨 Action Required: Pending Order #${newest.id} (${newest.customerName})`, 'info');
+            }
+          }
         } else {
           const freshOrders = sorted.filter((o) => !previousOrderIdsRef.current.has(o.id));
           if (freshOrders.length > 0) {
             freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
             const newest = freshOrders[0];
+            acknowledgedAlarmOrderIdRef.current = null;
             setLatestAlertOrder(newest);
             soundAlerts.startContinuousOrderAlarm({
               id: newest.id,
@@ -938,6 +1017,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubGallery();
       unsubVideos();
       unsubReviews();
+      unsubDeletedOrders();
       unsubOrders();
       unsubBroadcasts();
     };
@@ -1398,27 +1478,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       clearCart();
 
-      // Write to Firebase Realtime Database
+      // Fast parallel write to Firebase Realtime Database with timeout safeguard
       try {
-        await set(ref(rtdb, `orders/${newOrder.id}`), newOrder);
+        const cloudWrites: Promise<any>[] = [
+          set(ref(rtdb, `orders/${newOrder.id}`), newOrder),
+        ];
 
-        // If authenticated, also index full order object under user's order history
         if (currentUser) {
-          await set(ref(rtdb, `userOrders/${currentUser.uid}/${newOrder.id}`), newOrder);
-
-          // Save address / phone into customer profile if provided
+          cloudWrites.push(
+            set(ref(rtdb, `userOrders/${currentUser.uid}/${newOrder.id}`), newOrder)
+          );
           if (customer.customerPhone || customer.deliveryAddress) {
-            await update(ref(rtdb, `users/${currentUser.uid}`), {
-              phone: customer.customerPhone || undefined,
-              defaultAddress: customer.deliveryAddress || undefined,
-              city: customer.city || undefined,
-              pinCode: customer.pinCode || undefined,
-            }).catch(() => {});
+            cloudWrites.push(
+              update(ref(rtdb, `users/${currentUser.uid}`), {
+                phone: customer.customerPhone || undefined,
+                defaultAddress: customer.deliveryAddress || undefined,
+                city: customer.city || undefined,
+                pinCode: customer.pinCode || undefined,
+              }).catch(() => {})
+            );
           }
         }
+
+        // Fast race: wait max 1.5s so user UI completes instantaneously
+        await Promise.race([
+          Promise.all(cloudWrites),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
       } catch (err: unknown) {
-        console.error('Failed to write order to cloud database:', err);
-        showToast('Order saved locally, awaiting cloud sync confirmation.', 'info');
+        console.warn('Background order sync alert:', err);
       }
 
       return newOrder;
@@ -1492,13 +1580,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       try {
-        await updateCloudRecord('orders', orderId, updates);
+        await update(ref(rtdb, `orders/${orderId}`), updates);
         const currentOrd = orders.find((o) => o.id === orderId);
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
-          await updateCloudRecord(`userOrders/${currentOrd.userId}`, orderId, updates).catch(() => {});
+          await update(ref(rtdb, `userOrders/${currentOrd.userId}/${orderId}`), updates).catch(() => {});
         }
       } catch (err) {
-        console.error('Failed to update live location in cloud:', err);
+        console.warn('Direct RTDB updateOrderLocation error, attempting fallback:', err);
+        try {
+          await updateCloudRecord('orders', orderId, updates);
+        } catch {}
       }
     },
     [orders, updateCloudRecord]
@@ -1765,40 +1856,100 @@ _Please confirm this order and its preparation status._`;
     [settings.whatsAppNumber, settings.googleMapsUrl]
   );
 
-  // Seed / Reload active demo orders into kitchen manager
+  // Accept order with live location broadcast (Stops alarm, updates status, requests Admin GPS, streams live to customer)
+  const acceptOrderWithLiveLocation = useCallback(
+    async (orderId: string, targetStatus: OrderStatus = 'Preparing') => {
+      // 1. Stop continuous ringing alarm immediately
+      soundAlerts.stopContinuousAlarm();
+
+      // 2. Mark this order's alarm as acknowledged
+      acknowledgedAlarmOrderIdRef.current = orderId;
+      setLatestAlertOrder(null);
+
+      // 3. Update status in local state and Firebase RTDB
+      await updateOrderStatus(orderId, targetStatus);
+
+      // 4. Request Admin / Rider mobile GPS directly inside user click handler
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        showToast('📍 Requesting Admin / Kitchen GPS location...', 'info');
+
+        const onGpsSuccess = async (pos: GeolocationPosition) => {
+          const riderLoc: LiveLocation = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy || 10),
+            heading: pos.coords.heading || null,
+            speed: pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : null,
+            googleMapsLink: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`,
+            updatedAt: new Date().toISOString(),
+          };
+
+          await updateOrderLocation(orderId, riderLoc, true);
+          try {
+            if (rtdb) {
+              set(ref(rtdb, 'system/adminLiveLocation'), riderLoc).catch(() => {});
+            }
+          } catch {}
+
+          showToast('✓ Live Kitchen / Rider GPS connected! Streaming live to customer.', 'success');
+
+          // Start continuous real-time watchPosition for rider/admin movement
+          if (activeRiderWatchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(activeRiderWatchIdRef.current);
+          }
+          activeRiderWatchIdRef.current = navigator.geolocation.watchPosition(
+            (p) => {
+              const liveLoc: LiveLocation = {
+                latitude: p.coords.latitude,
+                longitude: p.coords.longitude,
+                accuracy: Math.round(p.coords.accuracy || 10),
+                heading: p.coords.heading || null,
+                speed: p.coords.speed ? Math.round(p.coords.speed * 3.6) : null,
+                googleMapsLink: `https://www.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}`,
+                updatedAt: new Date().toISOString(),
+              };
+              updateOrderLocation(orderId, liveLoc, true).catch(() => {});
+              try {
+                if (rtdb) {
+                  set(ref(rtdb, 'system/adminLiveLocation'), liveLoc).catch(() => {});
+                }
+              } catch {}
+            },
+            (err) => console.warn('Rider live tracking error:', err),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+          );
+        };
+
+        const onGpsFail = (err: any) => {
+          console.warn('High accuracy GPS error on accept:', err);
+          if (err?.code === 1) {
+            showToast('⚠️ Location access was denied. Please allow GPS so customer can track delivery live.', 'error');
+            return;
+          }
+          // Fallback to standard accuracy for devices where high-accuracy GPS times out
+          navigator.geolocation.getCurrentPosition(
+            onGpsSuccess,
+            (err2) => {
+              console.warn('Standard GPS error on accept:', err2);
+              showToast('Order Accepted! (Allow device GPS so customer can track your live movement)', 'info');
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 15000 }
+          );
+        };
+
+        navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsFail, {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 0,
+        });
+      }
+    },
+    [updateOrderStatus, updateOrderLocation, showToast]
+  );
+
   const seedDemoOrders = useCallback(async () => {
-    const now = Date.now();
-    const freshOrders: Order[] = INITIAL_ORDERS.map((o, idx) => ({
-      ...o,
-      id: `SKP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100000 + Math.random() * 900000)}`,
-      createdAt: new Date(now - (idx + 1) * 15 * 60000).toISOString(),
-      updatedAt: new Date(now - idx * 10 * 60000).toISOString(),
-    }));
-
-    setOrders((prev) => {
-      const merged = new Map<string, Order>();
-      prev.forEach((o) => merged.set(o.id, o));
-      freshOrders.forEach((o) => merged.set(o.id, o));
-      const sorted = Array.from(merged.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      try {
-        localStorage.setItem('sk_pizza_local_orders', JSON.stringify(sorted.slice(0, 100)));
-      } catch {}
-      return sorted;
-    });
-
-    try {
-      const initMap: Record<string, Order> = {};
-      freshOrders.forEach((fo) => {
-        initMap[fo.id] = fo;
-      });
-      await update(ref(rtdb, 'orders'), initMap);
-      showToast('Loaded active demo orders into kitchen manager!', 'success');
-    } catch {
-      showToast('Saved active demo orders to local device storage!', 'info');
-    }
-  }, [showToast]);
+    // Demo orders have been permanently disabled
+  }, []);
 
   // Products Cloud CRUD
   const addProduct = useCallback(
@@ -2062,7 +2213,7 @@ _Please confirm this order and its preparation status._`;
   // Reviews Cloud CRUD
   const addReview = useCallback(
     async (customerName: string, rating: number, comment: string) => {
-      const id = `rev-${Date.now()}`;
+      const id = `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const newReview: Review = {
         id,
         customerName: customerName.trim() || 'Valued Guest',
@@ -2196,6 +2347,7 @@ _Please confirm this order and its preparation status._`;
         setActiveOrder,
         generateWhatsAppUrl,
         generateCustomerStatusWhatsAppUrl,
+        acceptOrderWithLiveLocation,
         seedDemoOrders,
         isSoundMuted,
         toggleSoundMute,

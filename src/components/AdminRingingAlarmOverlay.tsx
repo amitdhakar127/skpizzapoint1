@@ -11,7 +11,7 @@ interface AdminRingingAlarmOverlayProps {
 }
 
 export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> = ({ onOpenOrder }) => {
-  const { orders, formatPrice, updateOrderStatus } = useApp();
+  const { orders, formatPrice, acceptOrderWithLiveLocation } = useApp();
   const [isRinging, setIsRinging] = useState(false);
   const [activeAlarmOrder, setActiveAlarmOrder] = useState<ActiveAlarmOrder | null>(null);
 
@@ -27,11 +27,12 @@ export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> =
 
   const currentOrder = orders.find((o) => o.id === activeAlarmOrder.id);
 
-  const handleStopAndAccept = () => {
-    soundAlerts.stopContinuousAlarm();
+  const handleStopAndAccept = async () => {
     if (activeAlarmOrder) {
-      updateOrderStatus(activeAlarmOrder.id, 'Preparing');
+      await acceptOrderWithLiveLocation(activeAlarmOrder.id, 'Preparing');
       onOpenOrder(activeAlarmOrder.id);
+    } else {
+      soundAlerts.stopContinuousAlarm();
     }
   };
 
@@ -75,7 +76,7 @@ export const AdminRingingAlarmOverlay: React.FC<AdminRingingAlarmOverlayProps> =
             className="px-5 py-2.5 rounded-2xl bg-white text-red-700 hover:bg-yellow-300 hover:text-slate-950 font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer ring-4 ring-white/40"
           >
             <Check className="w-5 h-5 text-emerald-600" />
-            <span>ACCEPT ORDER & STOP ALARM</span>
+            <span>ACCEPT & SHARE LIVE LOCATION</span>
           </button>
 
           <button

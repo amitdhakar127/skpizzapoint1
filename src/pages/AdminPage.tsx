@@ -80,7 +80,7 @@ const AdminPageInternal: React.FC = () => {
     deleteOrder,
     generateWhatsAppUrl,
     generateCustomerStatusWhatsAppUrl,
-    seedDemoOrders,
+    acceptOrderWithLiveLocation,
     isSoundMuted,
     toggleSoundMute,
     testOrderAlertSound,
@@ -188,6 +188,40 @@ const AdminPageInternal: React.FC = () => {
   // Automatically ask Admin for live location every time Admin opens the app/website
   useEffect(() => {
     requestAdminLiveLocation(true);
+  }, []);
+
+  // Screen Wake Lock API to prevent phone/tablet screen from turning off while on Kitchen Console
+  useEffect(() => {
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.warn('Wake lock error:', err);
+      }
+    };
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Request notification permission for background alarms
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+      }
+    };
   }, []);
 
   type AdminTab =
@@ -1113,16 +1147,6 @@ const AdminPageInternal: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => seedDemoOrders()}
-                    className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-950 font-black text-xs shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                    title="Load active sample orders (Pending, Preparing, Out for delivery)"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-amber-800" />
-                    <span>Load Active Demo Orders</span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => testOrderAlertSound()}
                     className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow flex items-center gap-1.5 transition-all cursor-pointer"
                   >
@@ -1241,17 +1265,9 @@ const AdminPageInternal: React.FC = () => {
                   <div className="space-y-1">
                     <h3 className="font-extrabold text-base text-[#1E1915]">No orders received yet</h3>
                     <p className="text-xs text-[#6B5B4F]">
-                      Customer orders generated via the website or WhatsApp will appear here automatically with loud voice alerts.
+                      Real customer orders placed on the website or WhatsApp will appear here instantly with loud voice & siren alerts.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => seedDemoOrders()}
-                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Load Active Sample Orders</span>
-                  </button>
                 </div>
               ) : ordersViewMode === 'sheet' ? (
                 /* SHEET / TABLE VIEW (Kitchen Order Sheet) */
@@ -1332,7 +1348,14 @@ const AdminPageInternal: React.FC = () => {
                               <td className="p-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 <select
                                   value={order.status}
-                                  onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                                  onChange={(e) => {
+                                    const nextSt = e.target.value as any;
+                                    if (nextSt === 'Preparing' || nextSt === 'Out for delivery' || nextSt === 'Ready for Pickup') {
+                                      acceptOrderWithLiveLocation(order.id, nextSt);
+                                    } else {
+                                      updateOrderStatus(order.id, nextSt);
+                                    }
+                                  }}
                                   className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-[#1E1915] focus:outline-none cursor-pointer"
                                 >
                                   <option value="Pending">📝 Pending</option>
@@ -1418,7 +1441,13 @@ const AdminPageInternal: React.FC = () => {
                                 <button
                                   key={st}
                                   type="button"
-                                  onClick={() => updateOrderStatus(order.id, st)}
+                                  onClick={() => {
+                                    if (st === 'Preparing' || st === 'Out for delivery' || st === 'Ready for Pickup') {
+                                      acceptOrderWithLiveLocation(order.id, st);
+                                    } else {
+                                      updateOrderStatus(order.id, st);
+                                    }
+                                  }}
                                   className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                     order.status === st
                                       ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400/40 shadow-xs'
@@ -1639,8 +1668,8 @@ const AdminPageInternal: React.FC = () => {
 
                               <button
                                 type="button"
-                                onClick={() => {
-                                  updateOrderStatus(order.id, 'Preparing');
+                                onClick={async () => {
+                                  await acceptOrderWithLiveLocation(order.id, 'Preparing');
                                   const url = generateCustomerStatusWhatsAppUrl(order, 'Preparing');
                                   window.open(url, '_blank', 'noopener,noreferrer');
                                 }}
@@ -1657,8 +1686,8 @@ const AdminPageInternal: React.FC = () => {
 
                               <button
                                 type="button"
-                                onClick={() => {
-                                  updateOrderStatus(order.id, 'Out for delivery');
+                                onClick={async () => {
+                                  await acceptOrderWithLiveLocation(order.id, 'Out for delivery');
                                   const url = generateCustomerStatusWhatsAppUrl(order, 'Out for delivery');
                                   window.open(url, '_blank', 'noopener,noreferrer');
                                 }}

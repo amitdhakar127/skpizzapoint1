@@ -121,12 +121,12 @@ export const CheckoutPage: React.FC = () => {
     }
   }, [userProfile]);
 
-  // Automatically request customer live location when checkout opens for delivery
+  // Automatically request customer live location when checkout opens (Mandatory for all orders)
   React.useEffect(() => {
-    if (orderType === 'delivery' && !customerLocation) {
+    if (!customerLocation) {
       requestCustomerLiveLocation();
     }
-  }, [orderType]);
+  }, []);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(activeOrder);
@@ -333,26 +333,26 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // Strict Enforcement: Live Location permission is mandatory for delivery orders
+    // Strict Enforcement: Live Location permission is mandatory for ALL orders (delivery & pickup)
     let loc = customerLocation;
+    if (!loc) {
+      // Attempt immediate GPS lock
+      loc = await requestCustomerLiveLocation();
+    }
+
+    if (!loc) {
+      showToast('⚠️ Location permission is mandatory! Please allow GPS access to place your order.', 'error');
+      setLocationError(
+        'Location permission is required! Please tap "ALLOW LIVE GPS LOCATION" below or enable GPS in your device/browser settings so we can track and confirm your order.'
+      );
+      const el = document.getElementById('live-location-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
     if (orderType === 'delivery') {
-      if (!loc) {
-        // Attempt immediate GPS lock
-        loc = await requestCustomerLiveLocation();
-      }
-
-      if (!loc) {
-        showToast('Live GPS location permission is required for home delivery!', 'error');
-        setLocationError(
-          'Location permission required! Please tap the large "ALLOW LIVE GPS LOCATION" button below to verify your delivery doorstep.'
-        );
-        const el = document.getElementById('live-location-section');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        return;
-      }
-
       if (!deliveryAddress.trim() && loc.addressText) {
         setDeliveryAddress(loc.addressText);
       } else if (!deliveryAddress.trim()) {
@@ -369,11 +369,11 @@ export const CheckoutPage: React.FC = () => {
         customerPhone: customerPhone.trim(),
         customerEmail: currentUser?.email || undefined,
         orderType,
-        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : (loc.addressText || settings.address || 'Store Pickup Counter'),
         city: orderType === 'delivery' ? city.trim() : undefined,
         pinCode: orderType === 'delivery' ? pinCode.trim() : undefined,
         instructions: instructions.trim() || undefined,
-        customerLocation: loc || undefined,
+        customerLocation: loc,
         paymentStatus: 'Pending',
       });
 
@@ -397,7 +397,7 @@ export const CheckoutPage: React.FC = () => {
       try {
         const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-          window.location.href = whatsAppUrl;
+          window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
         } else {
           const win = window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
           if (!win || win.closed || typeof win.closed === 'undefined') {
@@ -405,7 +405,7 @@ export const CheckoutPage: React.FC = () => {
           }
         }
       } catch {
-        window.location.href = whatsAppUrl;
+        window.open(whatsAppUrl, '_blank', 'noopener,noreferrer');
       }
     } catch {
       showToast('Failed to create order. Please check details.', 'error');
@@ -548,23 +548,20 @@ export const CheckoutPage: React.FC = () => {
               </div>
             )}
 
-            {/* Address fields only for Delivery */}
-            {orderType === 'delivery' && (
-              <div className="space-y-4 pt-2 border-t border-amber-100 animate-fade-in">
-                {/* Live GPS Location Access & Interactive Map Card */}
-                <div id="live-location-section" className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-300 space-y-4 shadow-sm">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 uppercase tracking-wide">
-                      <Compass className="w-4 h-4 text-amber-600 animate-spin-slow" />
-                      <span>Share Live Delivery Location (Real-time GPS)</span>
-                      <span className="text-[10px] text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full font-black">
-                        MANDATORY
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#6B5B4F] leading-relaxed">
-                      Allow GPS permission so our delivery rider navigates directly to your exact doorstep without needing to call for directions.
-                    </p>
-                  </div>
+            {/* Live GPS Location Access & Interactive Map Card (Mandatory for ALL orders) */}
+            <div id="live-location-section" className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 border-2 border-amber-300 space-y-4 shadow-sm animate-fade-in">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 font-black text-xs text-amber-950 uppercase tracking-wide">
+                  <Compass className="w-4 h-4 text-amber-600 animate-spin-slow" />
+                  <span>Real-time GPS Location Permission</span>
+                  <span className="text-[10px] text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full font-black">
+                    MANDATORY
+                  </span>
+                </div>
+                <p className="text-xs text-[#6B5B4F] leading-relaxed">
+                  Allow live GPS permission so SK Pizza Point can verify your real location, calculate exact transit distance, and dispatch hot fresh food without delay.
+                </p>
+              </div>
 
                   {/* Prominent Large Permission Button when location is not yet locked */}
                   {!customerLocation && (
@@ -688,8 +685,11 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
+                {/* Delivery Address fields only for Delivery orders */}
+                {orderType === 'delivery' && (
+                  <div className="space-y-4 pt-2 border-t border-amber-100 animate-fade-in">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-extrabold uppercase tracking-wider text-[#1E1915]">
                     Full Delivery Address <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">

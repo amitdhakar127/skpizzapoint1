@@ -35,6 +35,7 @@ interface AdminOrderDetailModalProps {
 const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ order, onClose, onDeleteOrder }) => {
   const {
     updateOrderStatus,
+    acceptOrderWithLiveLocation,
     updateOrderPaymentStatus,
     updateOrderLocation,
     formatPrice,
@@ -157,7 +158,13 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                 <button
                   key={st}
                   type="button"
-                  onClick={() => updateOrderStatus(order.id, st)}
+                  onClick={() => {
+                    if (st === 'Preparing' || st === 'Out for delivery') {
+                      acceptOrderWithLiveLocation(order.id, st);
+                    } else {
+                      updateOrderStatus(order.id, st);
+                    }
+                  }}
                   className={`py-2 px-2 rounded-xl text-xs font-black transition-all cursor-pointer text-center ${
                     order.status === st
                       ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-400'
