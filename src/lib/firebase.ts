@@ -4,6 +4,7 @@ import { getDatabase, Database } from 'firebase/database';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Official SK Pizza Point Firebase Project Configuration
+// These values are app configuration values, not secrets.
 export const firebaseConfig = {
   apiKey: "AIzaSyCCYR2QyIICr9wbS-P5X1m9860TSmmnHco",
   authDomain: "sk-pizza-point.firebaseapp.com",
@@ -16,6 +17,10 @@ export const firebaseConfig = {
 };
 
 export const AUTHORIZED_ADMIN_UID = "vxIlz4pYZgM646mXmp2BQuXtYz32";
+const AUTHORIZED_ADMIN_EMAILS = new Set([
+  'zyvoraofficial3@gmail.com',
+  'skpizzapoint@gmail.com',
+]);
 
 // Initialize Firebase exactly once. If Firebase was already initialized by
 // another module, reuse that app rather than creating a second instance.
@@ -26,18 +31,21 @@ export const auth: Auth = getAuth(app);
 export const rtdb: Database = getDatabase(app);
 export const storage: FirebaseStorage = getStorage(app);
 
+/**
+ * Strict admin authorization check.
+ * Accepts only the exact authorized UID and exact owner email values.
+ */
 export const isUserAdmin = (uid: string | null | undefined, email?: string | null): boolean => {
   if (!uid && !email) return false;
+
   if (uid && uid.trim() === AUTHORIZED_ADMIN_UID.trim()) return true;
+
   if (email) {
     const cleanEmail = email.trim().toLowerCase();
-    if (
-      cleanEmail === 'zyvoraofficial3@gmail.com' ||
-      cleanEmail === 'skpizzapoint@gmail.com' ||
-      cleanEmail.startsWith('admin@skpizza')
-    ) {
+    if (AUTHORIZED_ADMIN_EMAILS.has(cleanEmail)) {
       return true;
     }
   }
+
   return false;
 };
