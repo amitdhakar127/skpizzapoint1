@@ -333,30 +333,21 @@ export const CheckoutPage: React.FC = () => {
       return;
     }
 
-    // Strict Enforcement: Live Location permission is mandatory for ALL orders (delivery & pickup)
+    // Location handling: Use customerLocation if available; otherwise allow address fallback
     let loc = customerLocation;
-    if (!loc) {
-      // Attempt immediate GPS lock
-      loc = await requestCustomerLiveLocation();
-    }
-
-    if (!loc) {
-      showToast('⚠️ Location permission is mandatory! Please allow GPS access to place your order.', 'error');
-      setLocationError(
-        'Location permission is required! Please tap "ALLOW LIVE GPS LOCATION" below or enable GPS in your device/browser settings so we can track and confirm your order.'
-      );
-      const el = document.getElementById('live-location-section');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      return;
+    if (!loc && orderType === 'delivery') {
+      try {
+        loc = await requestCustomerLiveLocation();
+      } catch {}
     }
 
     if (orderType === 'delivery') {
-      if (!deliveryAddress.trim() && loc.addressText) {
+      if (!deliveryAddress.trim() && loc?.addressText) {
         setDeliveryAddress(loc.addressText);
       } else if (!deliveryAddress.trim()) {
-        showToast('Please enter your house/flat number or landmark', 'error');
+        showToast('Please enter your house/flat number or landmark for delivery', 'error');
+        const addrInput = document.getElementById('input-delivery-address');
+        if (addrInput) addrInput.focus();
         return;
       }
     }
@@ -369,11 +360,11 @@ export const CheckoutPage: React.FC = () => {
         customerPhone: customerPhone.trim(),
         customerEmail: currentUser?.email || undefined,
         orderType,
-        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : (loc.addressText || settings.address || 'Store Pickup Counter'),
-        city: orderType === 'delivery' ? city.trim() : undefined,
-        pinCode: orderType === 'delivery' ? pinCode.trim() : undefined,
+        deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : (loc?.addressText || settings.address || 'Store Pickup Counter'),
+        city: orderType === 'delivery' ? (city.trim() || undefined) : undefined,
+        pinCode: orderType === 'delivery' ? (pinCode.trim() || undefined) : undefined,
         instructions: instructions.trim() || undefined,
-        customerLocation: loc,
+        customerLocation: loc || undefined,
         paymentStatus: 'Pending',
       });
 

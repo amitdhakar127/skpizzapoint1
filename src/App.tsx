@@ -27,7 +27,7 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const AppContent: React.FC = () => {
-  const { currentPath } = useApp();
+  const { currentPath, isAdmin } = useApp();
 
   const isAdminRoute = currentPath === '/admin';
   const isAdminLoginRoute = currentPath === '/admin/login';
@@ -114,8 +114,8 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFFDF9] text-[#1E1915] font-sans antialiased selection:bg-amber-400 selection:text-slate-950">
-      {/* Global Repeating Siren Alert Banner across all screens */}
-      <GlobalSirenAlertBanner />
+      {/* Global Repeating Siren Alert Banner across all screens: ONLY for verified Admin */}
+      {isAdmin && <GlobalSirenAlertBanner />}
 
       {/* Top navigation header */}
       <Header />

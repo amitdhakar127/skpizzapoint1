@@ -454,6 +454,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return isUserAdmin(currentUser?.uid, currentUser?.email);
   }, [isPasscodeAdmin, currentUser]);
 
+  // Keep admin reference for real-time Firebase listeners and stop alarms if not admin
+  const isAdminRef = useRef(isAdmin);
+  useEffect(() => {
+    isAdminRef.current = isAdmin;
+    if (!isAdmin) {
+      soundAlerts.stopContinuousAlarm();
+    }
+  }, [isAdmin]);
+
   // Cloud Database States (Realtime Database)
   const [products, setProducts] = useState<Product[]>(() => {
     return INITIAL_PRODUCTS.map(normalizeProduct).filter((p): p is Product => p !== null);
@@ -932,8 +941,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           initialOrdersLoadedRef.current = true;
           previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
 
-          // If there is any unaccepted pending order when admin opens, sound continuous alarm!
-          if (pendingOrders.length > 0) {
+          // If there is any unaccepted pending order when admin opens, sound continuous alarm ONLY for admin!
+          if (isAdminRef.current && pendingOrders.length > 0) {
             const newest = pendingOrders[0];
             const ageMs = nowMs - new Date(newest.createdAt).getTime();
             if (ageMs < 60 * 60 * 1000 && acknowledgedAlarmOrderIdRef.current !== newest.id) {
@@ -952,21 +961,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             freshOrders.forEach((o) => previousOrderIdsRef.current.add(o.id));
             const newest = freshOrders[0];
             acknowledgedAlarmOrderIdRef.current = null;
-            setLatestAlertOrder(newest);
-            soundAlerts.startContinuousOrderAlarm({
-              id: newest.id,
-              customerName: newest.customerName,
-              amount: newest.finalTotal,
-            });
-            showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
 
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification('🍕 New SK Pizza Point Order!', {
-                  body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
-                  icon: '/favicon.ico',
-                });
-              } catch {}
+            // Only trigger loud siren alarm and desktop push notification if user is Admin!
+            if (isAdminRef.current) {
+              setLatestAlertOrder(newest);
+              soundAlerts.startContinuousOrderAlarm({
+                id: newest.id,
+                customerName: newest.customerName,
+                amount: newest.finalTotal,
+              });
+              showToast(`🔔 New Order! #${newest.id} from ${newest.customerName} (₹${newest.finalTotal})`, 'success');
+
+              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                try {
+                  new Notification('🍕 New SK Pizza Point Order!', {
+                    body: `Order #${newest.id} from ${newest.customerName} for ₹${newest.finalTotal}`,
+                    icon: '/favicon.ico',
+                  });
+                } catch {}
+              }
             }
           }
         }
@@ -1021,6 +1034,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubOrders();
       unsubBroadcasts();
     };
+  }, []);
+
+  // Auto-sync pending offline orders as soon as network reconnects
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncOfflineOrders = async () => {
+      try {
+        const raw = localStorage.getItem('sk_pizza_pending_sync_orders');
+        if (!raw) return;
+        const list: Order[] = JSON.parse(raw);
+        if (!Array.isArray(list) || list.length === 0) return;
+        const remaining: Order[] = [];
+        for (const ord of list) {
+          try {
+            await set(ref(rtdb, `orders/${ord.id}`), ord);
+          } catch {
+            remaining.push(ord);
+          }
+        }
+        localStorage.setItem('sk_pizza_pending_sync_orders', JSON.stringify(remaining));
+      } catch {}
+    };
+
+    window.addEventListener('online', syncOfflineOrders);
+    syncOfflineOrders();
+    return () => window.removeEventListener('online', syncOfflineOrders);
   }, []);
 
   // Helper: Seed all default data to Cloud
@@ -1198,7 +1237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (passcode: string): boolean => {
       const target = (settings.adminPasscode || 'admin123').trim();
       const entered = passcode.trim();
-      if (entered === target || entered === 'admin123') {
+      if (entered === target) {
         setIsPasscodeAdmin(true);
         try {
           sessionStorage.setItem('sk_pizza_admin_session', 'true');
@@ -1462,6 +1501,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Immediate responsive state update
       setActiveOrder(newOrder);
+      try {
+        localStorage.setItem('sk_pizza_active_order', JSON.stringify(newOrder));
+      } catch {}
+
       setMyOrders((prev) => {
         const next = [newOrder, ...prev.filter((o) => o.id !== newOrder.id)];
         try {
@@ -1478,7 +1521,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       clearCart();
 
-      // Fast parallel write to Firebase Realtime Database with timeout safeguard
+      // Fast write to Firebase Realtime Database with offline fallback queue
       try {
         const cloudWrites: Promise<any>[] = [
           set(ref(rtdb, `orders/${newOrder.id}`), newOrder),
@@ -1506,7 +1549,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           new Promise((resolve) => setTimeout(resolve, 1500)),
         ]);
       } catch (err: unknown) {
-        console.warn('Background order sync alert:', err);
+        console.warn('Background order sync alert, queued locally:', err);
+        try {
+          const rawPending = localStorage.getItem('sk_pizza_pending_sync_orders');
+          const list: Order[] = rawPending ? JSON.parse(rawPending) : [];
+          if (!list.some((o) => o.id === newOrder.id)) {
+            list.push(newOrder);
+            localStorage.setItem('sk_pizza_pending_sync_orders', JSON.stringify(list));
+          }
+        } catch {}
       }
 
       return newOrder;
@@ -1779,7 +1830,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const locationSection =
         order.customerLocation?.latitude && order.customerLocation?.longitude
-          ? `\n📍 *Customer Current Location (Google Maps):* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Pin: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)} | Accuracy: ±${Math.round(order.customerLocation.accuracy || 10)}m)`
+          ? `\n📍 *Customer Live GPS Location (Google Maps):* https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}\n(GPS Coordinates: ${order.customerLocation.latitude.toFixed(6)}, ${order.customerLocation.longitude.toFixed(6)}${order.customerLocation.accuracy ? ` | Accuracy: ±${Math.round(order.customerLocation.accuracy)}m` : ''})${order.customerLocation.addressText ? `\n(Pinned Area: ${order.customerLocation.addressText})` : ''}`
           : '';
 
       const origin =
@@ -1812,7 +1863,10 @@ ${itemsList}
 
 _Please confirm this order and its preparation status._`;
 
-      const cleanPhone = (settings.whatsAppNumber || '+919617142439').replace(/[^0-9]/g, '');
+      let cleanPhone = (settings.whatsAppNumber || '+919617142439').replace(/[^0-9]/g, '');
+      if (cleanPhone.length === 10) {
+        cleanPhone = `91${cleanPhone}`;
+      }
       return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(rawMessage)}`;
     },
     [settings.whatsAppNumber, settings.deliveryFeeNote, settings.googleMapsUrl]
@@ -1850,7 +1904,10 @@ _Please confirm this order and its preparation status._`;
         statusMsg = `Hello ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}\n🏪 Store: ${storeLocationUrl}`;
       }
 
-      const cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');
+      let cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');
+      if (cleanPhone.length === 10) {
+        cleanPhone = `91${cleanPhone}`;
+      }
       return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(statusMsg)}`;
     },
     [settings.whatsAppNumber, settings.googleMapsUrl]

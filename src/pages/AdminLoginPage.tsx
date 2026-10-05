@@ -24,7 +24,9 @@ export const AdminLoginPage: React.FC = () => {
     settings,
   } = useApp();
 
-  const [email, setEmail] = useState('zyvoraofficial3@gmail.com');
+  const [email, setEmail] = useState(
+    () => (typeof window !== 'undefined' && localStorage.getItem('sk_admin_saved_email')) || 'skpizzapoint@gmail.com'
+  );
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -81,6 +83,9 @@ export const AdminLoginPage: React.FC = () => {
     setIsLoading(false);
 
     if (res.success) {
+      try {
+        localStorage.setItem('sk_admin_saved_email', email);
+      } catch {}
       navigate('/admin');
     } else {
       setErrorMessage(res.error || 'Admin login failed. Please check credentials.');
