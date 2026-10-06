@@ -5,108 +5,84 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Outer Golden Brand Rim -->
+    <!-- Clean 2D Brand Outer Gold Circle -->
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M54,14 A40,40 0 1,0 54,94 A40,40 0 1,0 54,14 Z" />
+        android:pathData="M54,16 A38,38 0 1,0 54,92 A38,38 0 1,0 54,16 Z" />
 
-    <!-- Inner Charcoal Core -->
+    <!-- Brand Inner Dark Charcoal Core -->
     <path
         android:fillColor="#1A1511"
-        android:pathData="M54,18 A36,36 0 1,0 54,90 A36,36 0 1,0 54,18 Z" />
+        android:pathData="M54,19 A35,35 0 1,0 54,89 A35,35 0 1,0 54,19 Z" />
 
-    <!-- Decorative Inner Gold Ring -->
+    <!-- Thin Clean Gold Accent Ring -->
     <path
-        android:strokeColor="#D97706"
+        android:strokeColor="#FBBF24"
         android:strokeWidth="1.2"
-        android:pathData="M54,21 A33,33 0 1,0 54,87 A33,33 0 1,0 54,21 Z" />
+        android:pathData="M54,22 A32,32 0 1,0 54,86 A32,32 0 1,0 54,22 Z" />
 
-    <!-- Top Chef Hat (Golden & White) -->
+    <!-- Chef Hat in Crisp 2D Gold & White -->
     <path
         android:fillColor="#FBBF24"
-        android:pathData="M48,22 C45,18 51,15 54,18 C57,15 63,18 60,22 Z" />
+        android:pathData="M48,24 C45,21 51,18 54,21 C57,18 63,21 60,24 Z" />
     <path
         android:fillColor="#D97706"
-        android:pathData="M49,22 L59,22 L59,23.5 L49,23.5 Z" />
+        android:pathData="M49,24 L59,24 L59,25.5 L49,25.5 Z" />
 
-    <!-- Left Bold Letter 'S' in Gold -->
-    <!-- Top bar -->
+    <!-- Bold 2D Flat Letter 'S' in Vibrant Amber Gold -->
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M31,34 L40,34 L40,37 L34.5,37 C34.5,38.5 35,39.5 37,40 L38.5,40.8 C41,42 42,44 42,46.5 C42,49.5 39.5,52 36,52 L29.5,52 L29.5,49 L36,49 C37.5,49 38.5,48 38.5,46.5 C38.5,45 37.5,44.2 35.5,43.2 L34,42.5 C32,41.5 31,39.5 31,37 Z" />
+        android:pathData="M32,35 L41,35 L41,38 L35.5,38 C35.5,39.5 36,40.5 38,41 L39.5,41.8 C42,43 43,45 43,47.5 C43,50.5 40.5,53 37,53 L30.5,53 L30.5,50 L37,50 C38.5,50 39.5,49 39.5,47.5 C39.5,46 38.5,45.2 36.5,44.2 L35,43.5 C33,42.5 32,40.5 32,38 Z" />
 
-    <!-- Right Bold Letter 'K' in Gold -->
-    <!-- Vertical stem -->
+    <!-- Bold 2D Flat Letter 'K' in Vibrant Amber Gold -->
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M67,34 L70.5,34 L70.5,52 L67,52 Z" />
-    <!-- Diagonal up -->
+        android:pathData="M66,35 L70,35 L70,53 L66,53 Z" />
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M70.5,44 L76.5,34 L81,34 L73.5,45 Z" />
-    <!-- Diagonal down -->
+        android:pathData="M70,44 L76.5,35 L81.5,35 L73.5,45.5 Z" />
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M72,43.5 L81.5,52 L76.5,52 L69.5,45.5 Z" />
+        android:pathData="M72,43.5 L82,53 L77,53 L69.5,45.5 Z" />
 
-    <!-- Center Artisan Pizza Slice -->
+    <!-- Center 2D Pizza Slice (Matching Website Logo) -->
     <!-- Golden Crust -->
     <path
         android:fillColor="#D97706"
-        android:pathData="M45,36 Q54,34 63,36 L62,39 Q54,37.5 46,39 Z" />
+        android:pathData="M45,37 Q54,35 63,37 L62,40 Q54,38.5 46,40 Z" />
 
-    <!-- Rich Melted Mozzarella & Sauce Slice Body -->
-    <path
-        android:fillColor="#F59E0B"
-        android:pathData="M46,39 Q54,37.5 62,39 L54,65 Z" />
+    <!-- Mozzarella Cheese Slice -->
     <path
         android:fillColor="#FBBF24"
-        android:pathData="M48,41 Q54,39.5 60,41 L54,61 Z" />
+        android:pathData="M46,40 L62,40 L54,63 Z" />
 
-    <!-- Savory Pepperoni & Veggie Dots -->
+    <!-- Pepperoni Dots in Tomato Red -->
     <path
-        android:fillColor="#DC2626"
-        android:pathData="M54,43 A3.5,3.5 0 1,0 54,50 A3.5,3.5 0 1,0 54,43 Z" />
+        android:fillColor="#EF4444"
+        android:pathData="M51,44 A2.8,2.8 0 1,0 51,49.6 A2.8,2.8 0 1,0 51,44 Z" />
     <path
-        android:fillColor="#DC2626"
-        android:pathData="M50,51 A2.5,2.5 0 1,0 50,56 A2.5,2.5 0 1,0 50,51 Z" />
+        android:fillColor="#EF4444"
+        android:pathData="M57,44 A2.8,2.8 0 1,0 57,49.6 A2.8,2.8 0 1,0 57,44 Z" />
     <path
-        android:fillColor="#DC2626"
-        android:pathData="M57,52 A2.5,2.5 0 1,0 57,57 A2.5,2.5 0 1,0 57,52 Z" />
-    <!-- Mozzarella & Basil Accents -->
-    <path
-        android:fillColor="#16A34A"
-        android:pathData="M53,49 A1.8,1.8 0 1,0 53,52.6 A1.8,1.8 0 1,0 53,49 Z" />
-    <path
-        android:fillColor="#FEF08A"
-        android:pathData="M54,58 A1.5,1.5 0 1,0 54,61 A1.5,1.5 0 1,0 54,58 Z" />
+        android:fillColor="#EF4444"
+        android:pathData="M54,52 A2.5,2.5 0 1,0 54,57 A2.5,2.5 0 1,0 54,52 Z" />
 
-    <!-- Bottom Brand Ribbon Banner -->
-    <path
-        android:fillColor="#DC2626"
-        android:strokeColor="#F59E0B"
-        android:strokeWidth="1.2"
-        android:pathData="M26,71 L82,71 L80,82 L28,82 Z" />
-
-    <!-- Ribbon Swallowtail Ends -->
-    <path
-        android:fillColor="#B91C1C"
-        android:pathData="M26,71 L22,76.5 L26,82 Z" />
-    <path
-        android:fillColor="#B91C1C"
-        android:pathData="M82,71 L86,76.5 L82,82 Z" />
-
-    <!-- PIZZA POINT Gold Emblem Dots on Banner -->
-    <path
-        android:fillColor="#FEF08A"
-        android:pathData="M30,76.5 A1.5,1.5 0 1,0 30,79.5 A1.5,1.5 0 1,0 30,76.5 Z" />
-    <path
-        android:fillColor="#FEF08A"
-        android:pathData="M78,76.5 A1.5,1.5 0 1,0 78,79.5 A1.5,1.5 0 1,0 78,76.5 Z" />
-
-    <!-- Golden Crown Stars underneath banner -->
+    <!-- Clean Bottom Banner: "PIZZA POINT" Text in 2D White -->
     <path
         android:fillColor="#F59E0B"
-        android:pathData="M54,84 L55.2,87 L58.5,87 L56,89 L57,92 L54,90 L51,92 L52,89 L49.5,87 L52.8,87 Z" />
+        android:pathData="M33,68 L75,68 L73,73 L35,73 Z" />
+
+    <!-- Star Badges Left & Right in Golden Yellow -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M27,53 L28.5,56 L31.5,56 L29,58 L30,61 L27,59.5 L24,61 L25,58 L22.5,56 L25.5,56 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M81,53 L82.5,56 L85.5,56 L83,58 L84,61 L81,59.5 L78,61 L79,58 L76.5,56 L79.5,56 Z" />
+
+    <!-- Quality Est. Ribbons in 2D Gold -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M42,76 L66,76 L65,78 L43,78 Z" />
 
 </vector>

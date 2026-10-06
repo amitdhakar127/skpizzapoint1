@@ -442,7 +442,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Passcode Admin Session (Allows instant APK / Mobile access with restaurant passcode)
   const [isPasscodeAdmin, setIsPasscodeAdmin] = useState<boolean>(() => {
     try {
-      return typeof window !== 'undefined' && sessionStorage.getItem('sk_pizza_admin_session') === 'true';
+      if (typeof window === 'undefined') return false;
+      return (
+        sessionStorage.getItem('sk_pizza_admin_session') === 'true' ||
+        localStorage.getItem('sk_pizza_admin_session') === 'true'
+      );
     } catch {
       return false;
     }
@@ -451,6 +455,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Authoritative admin verification: User's UID must match authorized ID or owner email OR passcode session
   const isAdmin = useMemo(() => {
     if (isPasscodeAdmin) return true;
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem('sk_pizza_admin_session') === 'true') return true;
+    }
     return isUserAdmin(currentUser?.uid, currentUser?.email);
   }, [isPasscodeAdmin, currentUser]);
 
@@ -942,7 +949,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           previousOrderIdsRef.current = new Set(sorted.map((o) => o.id));
 
           // If there is any unaccepted pending order when admin opens, sound continuous alarm ONLY for admin!
-          if (isAdminRef.current && pendingOrders.length > 0) {
+          const isAdminActive =
+            isAdminRef.current ||
+            (typeof window !== 'undefined' && (
+              localStorage.getItem('sk_pizza_admin_session') === 'true' ||
+              sessionStorage.getItem('sk_pizza_admin_session') === 'true' ||
+              window.location.hash.includes('admin') ||
+              window.location.pathname.includes('admin')
+            ));
+
+          if (isAdminActive && pendingOrders.length > 0) {
             const newest = pendingOrders[0];
             const ageMs = nowMs - new Date(newest.createdAt).getTime();
             if (ageMs < 60 * 60 * 1000 && acknowledgedAlarmOrderIdRef.current !== newest.id) {
@@ -963,7 +979,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             acknowledgedAlarmOrderIdRef.current = null;
 
             // Only trigger loud siren alarm and desktop push notification if user is Admin!
-            if (isAdminRef.current) {
+            const isAdminActive =
+              isAdminRef.current ||
+              (typeof window !== 'undefined' && (
+                localStorage.getItem('sk_pizza_admin_session') === 'true' ||
+                sessionStorage.getItem('sk_pizza_admin_session') === 'true' ||
+                window.location.hash.includes('admin') ||
+                window.location.pathname.includes('admin')
+              ));
+
+            if (isAdminActive) {
               setLatestAlertOrder(newest);
               soundAlerts.startContinuousOrderAlarm({
                 id: newest.id,
@@ -1241,6 +1266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsPasscodeAdmin(true);
         try {
           sessionStorage.setItem('sk_pizza_admin_session', 'true');
+          localStorage.setItem('sk_pizza_admin_session', 'true');
         } catch {}
         showToast('Admin Studio Passcode Verified!', 'success');
         return true;
@@ -1893,7 +1919,11 @@ _Please confirm this order and its preparation status._`;
           order.customerLocation?.latitude && order.customerLocation?.longitude
             ? `\n📍 Customer Delivery Pin: https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}`
             : '';
-        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your address.${custGps}\n\n🗺️ Live GPS Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nPlease keep your phone nearby!`;
+        const riderGps =
+          order.deliveryRiderLocation?.latitude && order.deliveryRiderLocation?.longitude
+            ? `\n🛵 Delivery Rider Live GPS: https://www.google.com/maps?q=${order.deliveryRiderLocation.latitude},${order.deliveryRiderLocation.longitude}`
+            : '';
+        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your address.${custGps}${riderGps}\n\n🗺️ Live GPS Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nPlease keep your phone nearby!`;
       } else if (newStatus === 'Ready for Pickup') {
         statusMsg = `Hello ${customerName}! 🛍️\n\nYour order *#${orderId}* is *READY FOR PICKUP* at our store!\nPlease visit the counter to collect your fresh, hot order.\n\n🏪 Store Location (Google Maps): ${storeLocationUrl}\n🗺️ Order Summary: ${trackLink}\n\nSee you soon at SK Pizza Point!`;
       } else if (newStatus === 'Delivered') {
@@ -2000,8 +2030,19 @@ _Please confirm this order and its preparation status._`;
           maximumAge: 0,
         });
       }
+
+      // Automatically trigger WhatsApp update for the customer with the live tracking link
+      try {
+        const currentOrd = orders.find((o) => o.id === orderId);
+        if (currentOrd && currentOrd.customerPhone) {
+          const whatsAppUrl = generateCustomerStatusWhatsAppUrl(currentOrd, targetStatus);
+          if (whatsAppUrl && typeof window !== 'undefined') {
+            window.open(whatsAppUrl, '_blank');
+          }
+        }
+      } catch {}
     },
-    [updateOrderStatus, updateOrderLocation, showToast]
+    [updateOrderStatus, updateOrderLocation, showToast, orders, generateCustomerStatusWhatsAppUrl]
   );
 
   const seedDemoOrders = useCallback(async () => {

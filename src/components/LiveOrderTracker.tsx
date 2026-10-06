@@ -337,17 +337,36 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
             )}
           </div>
 
-          {/* Real Interactive Street Map View (Zomato / Swiggy / Blinkit style) */}
-          <div className="space-y-2">
-            <InteractiveLiveMap
-              mode={isAdminView ? 'admin-view' : 'tracker'}
-              customerLocation={customerLoc}
-              riderLocation={riderLoc}
-              height="260px"
-              orderId={order.id}
-              orderStatus={order.status}
-            />
-          </div>
+          {/* Real Interactive Street Map View: Activates when Rider is Out for Delivery with Live GPS */}
+          {order.status === 'Out for delivery' || riderLoc ? (
+            <div className="space-y-2">
+              <InteractiveLiveMap
+                mode={isAdminView ? 'admin-view' : 'tracker'}
+                customerLocation={customerLoc}
+                riderLocation={riderLoc}
+                height="280px"
+                orderId={order.id}
+                orderStatus={order.status}
+              />
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-neutral-800/80 border border-neutral-700 space-y-2 text-center py-6">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto animate-pulse">
+                <span className="text-xl">🍕</span>
+              </div>
+              <h5 className="font-extrabold text-xs text-amber-300">
+                Kitchen is Preparing Your Fresh Order
+              </h5>
+              <p className="text-[11px] text-neutral-400 max-w-md mx-auto">
+                Your pizza is being freshly baked with real mozzarella! Once our delivery partner picks up the order with live GPS, the live moving radar map will appear right here.
+              </p>
+              {customerLoc && (
+                <p className="text-[10px] text-emerald-400 font-mono">
+                  ✓ Destination Pin Locked: {customerLoc.addressText || `${customerLoc.latitude.toFixed(4)}, ${customerLoc.longitude.toFixed(4)}`}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Details & Actions for Two-way GPS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">

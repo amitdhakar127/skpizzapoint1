@@ -44,7 +44,6 @@ import { useApp } from '../context/AppContext';
 import { AdminLoginPage } from './AdminLoginPage';
 import { Product, OrderStatus, GalleryItem, VideoItem, PizzaSize, ProductCategory, AddOn, LiveLocation, Order } from '../types';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
-import { InteractiveLiveMap } from '../components/InteractiveLiveMap';
 import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -932,19 +931,6 @@ const AdminPageInternal: React.FC = () => {
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
-                </div>
-
-                {/* Live Interactive Map Preview for Admin */}
-                <div className="rounded-2xl overflow-hidden border border-amber-200 space-y-1">
-                  <div className="bg-amber-100/60 px-3 py-1.5 text-[11px] font-bold text-amber-900 flex items-center justify-between">
-                    <span>📍 Admin Live Location Map</span>
-                    <span className="text-[10px] text-neutral-600">Badagoan Rd, Khureiri, Gwalior</span>
-                  </div>
-                  <InteractiveLiveMap
-                    mode="admin-view"
-                    customerLocation={adminLiveLoc}
-                    height="200px"
-                  />
                 </div>
               </div>
 

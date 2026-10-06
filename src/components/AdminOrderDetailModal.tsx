@@ -21,7 +21,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
-import { InteractiveLiveMap } from './InteractiveLiveMap';
 import { useApp } from '../context/AppContext';
 import { getGoogleMapsNavigationUrl, getGoogleMapsPinUrl, STORE_GOOGLE_MAPS_URL } from '../lib/locationService';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -259,14 +258,14 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
             </div>
           </div>
 
-          {/* Interactive Live Map & Route (Zomato/Swiggy style) */}
+          {/* Customer GPS & Rider Broadcast Hub */}
           {order.orderType === 'delivery' && (
             <div className="space-y-3 p-4 sm:p-5 rounded-3xl bg-[#1E1915] text-white shadow-xl border border-neutral-800">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-800 pb-3">
                 <div className="flex items-center gap-2">
                   <Compass className="w-5 h-5 text-amber-400 animate-spin-slow" />
                   <h4 className="font-black text-sm uppercase tracking-wider text-amber-400">
-                    Live Route & Customer Location Map (Zomato / Swiggy Style)
+                    Live GPS & Customer Navigation Hub
                   </h4>
                 </div>
 
@@ -322,16 +321,6 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                   </a>
                 </div>
               </div>
-
-              {/* Leaflet Interactive Map View */}
-              <InteractiveLiveMap
-                mode="admin-view"
-                customerLocation={order.customerLocation}
-                riderLocation={order.deliveryRiderLocation}
-                height="320px"
-                orderId={order.id}
-                orderStatus={order.status}
-              />
 
               {/* Rider Broadcast Control */}
               <div className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
