@@ -38,16 +38,20 @@ jobs:
             echo '{"project_info":{"project_number":"336176195310","firebase_url":"https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app","project_id":"sk-pizza-point","storage_bucket":"sk-pizza-point.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:336176195310:android:34a9b6c123ef890a","android_client_info":{"package_name":"com.skpizzapoint.admin"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyD-PlaceholderKey"}]}]}' > android-admin/app/google-services.json
           fi
 
+      - name: Setup Python for Brand Icon Generation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Icon Dependencies
+        run: |
+          pip install --no-cache-dir pillow requests
+
       - name: Sync Website Brand Logo into APK Icon
         run: |
           python3 -c "
-          import urllib.request, os
+          import os, requests
           from PIL import Image
-
-          url = 'https://i.imgur.com/KRI3jtw.jpeg'
-          os.makedirs('tmp_logo', exist_ok=True)
-          urllib.request.urlretrieve(url, 'tmp_logo/brand_logo.jpg')
-          img = Image.open('tmp_logo/brand_logo.jpg').convert('RGBA')
 
           densities = [
               ('mipmap-mdpi', 48),
@@ -57,12 +61,26 @@ jobs:
               ('mipmap-xxxhdpi', 192)
           ]
           res_dir = 'android-admin/app/src/main/res'
-          for folder, size in densities:
-              target_dir = os.path.join(res_dir, folder)
-              os.makedirs(target_dir, exist_ok=True)
-              resized = img.resize((size, size), Image.Resampling.LANCZOS)
-              resized.save(os.path.join(target_dir, 'ic_launcher.png'))
-              resized.save(os.path.join(target_dir, 'ic_launcher_round.png'))
+
+          try:
+              headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+              r = requests.get('https://i.imgur.com/KRI3jtw.jpeg', headers=headers, timeout=20)
+              if r.status_code == 200:
+                  os.makedirs('tmp_logo', exist_ok=True)
+                  with open('tmp_logo/brand_logo.jpg', 'wb') as f:
+                      f.write(r.content)
+                  img = Image.open('tmp_logo/brand_logo.jpg').convert('RGBA')
+                  for folder, size in densities:
+                      target_dir = os.path.join(res_dir, folder)
+                      os.makedirs(target_dir, exist_ok=True)
+                      resized = img.resize((size, size), Image.Resampling.LANCZOS)
+                      resized.save(os.path.join(target_dir, 'ic_launcher.png'))
+                      resized.save(os.path.join(target_dir, 'ic_launcher_round.png'))
+                  print('✓ Successfully generated all high-res 2D brand launcher icons!')
+              else:
+                  print('External logo returned status:', r.status_code)
+          except Exception as e:
+              print('External logo download warning:', e)
           "
 
       - name: Build APK

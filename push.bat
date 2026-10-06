@@ -22,7 +22,7 @@ git add -A
 
 echo.
 echo [4/5] Creating commit...
-git commit -m "feat: real-time order siren alerts, two-way GPS sync, live tracking radar, and 2D APK logo"
+git commit -m "fix(apk): fix CI python pillow icon step and enhance premium mobile app UI with 3-dots menu"
 
 echo.
 echo [5/5] Pushing to GitHub (origin main)...

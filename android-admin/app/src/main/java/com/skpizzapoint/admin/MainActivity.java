@@ -112,7 +112,9 @@ public class MainActivity extends ComponentActivity {
         settings.setSupportZoom(false);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        // Identify as native Android Admin APK
+        String defaultUa = settings.getUserAgentString();
+        settings.setUserAgentString((defaultUa != null ? defaultUa : "") + " SKPizzaPointAdminApp/1.0");
 
         // Allow instant audio sirens & ringtones without waiting for user tap
         settings.setMediaPlaybackRequiresUserGesture(false);

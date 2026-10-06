@@ -39,6 +39,10 @@ import {
   BellRing,
   Navigation,
   RotateCw,
+  MoreVertical,
+  Store,
+  Clock,
+  MessageCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AdminLoginPage } from './AdminLoginPage';
@@ -246,6 +250,7 @@ const AdminPageInternal: React.FC = () => {
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
   const [ordersViewMode, setOrdersViewMode] = useState<'sheet' | 'cards'>('cards');
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState<boolean>(false);
+  const [isDotsMenuOpen, setIsDotsMenuOpen] = useState<boolean>(false);
 
   // High list sorting: Newest placed orders are ALWAYS at the top!
   const sortedOrders = [...orders].sort(
@@ -676,19 +681,141 @@ const AdminPageInternal: React.FC = () => {
 
           <button
             onClick={() => navigate('/')}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="hidden sm:flex px-2.5 sm:px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold transition-colors items-center gap-1.5 cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Live Website</span>
+            <span>Live Website</span>
           </button>
 
           <button
             onClick={() => logout()}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="hidden sm:flex px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white text-xs font-bold transition-colors items-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
+            <span>Logout</span>
           </button>
+
+          {/* 3-Dots Menu Button (Android Mobile App Style) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsDotsMenuOpen((prev) => !prev)}
+              className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-amber-400 transition-all flex items-center justify-center cursor-pointer shadow-md border border-neutral-700"
+              title="More Options (3 Dots Menu)"
+            >
+              <MoreVertical className="w-4 h-4 text-amber-400" />
+            </button>
+
+            {/* 3-Dots Dropdown Menu */}
+            {isDotsMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsDotsMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-[#1C1713] border-2 border-amber-400/80 shadow-2xl p-2 z-50 animate-scale-in text-white text-xs space-y-1">
+                  <div className="px-3 py-2 border-b border-neutral-800">
+                    <span className="font-black text-amber-400 text-xs block">
+                      ⚡ Quick Partner Actions
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      SK Pizza Point Merchant App
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      testOrderAlertSound();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-500 hover:text-slate-950 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <BellRing className="w-4 h-4 text-amber-400" />
+                    <span>🚨 Test Siren Alarm</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      toggleSoundMute();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-500 hover:text-slate-950 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    {isSoundMuted ? (
+                      <VolumeX className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <Volume2 className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span>{isSoundMuted ? '🔇 Unmute Voice Alert' : '🔔 Mute Voice Alert'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      setActiveTab('broadcasts');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-500 hover:text-slate-950 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Send className="w-4 h-4 text-amber-400" />
+                    <span>📢 Send Customer Offer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      syncInitialDataToCloud();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-500 hover:text-slate-950 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-400" />
+                    <span>🔄 Sync Cloud Database</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      requestAdminLiveLocation();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-500 hover:text-slate-950 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Compass className="w-4 h-4 text-emerald-400" />
+                    <span>📍 Update Admin GPS</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDotsMenuOpen(false);
+                      navigate('/');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-800 text-neutral-300 font-bold flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4 text-neutral-400" />
+                    <span>🌐 Live Customer Website</span>
+                  </button>
+
+                  <div className="pt-1 border-t border-neutral-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDotsMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white font-black flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>🚪 Logout Admin</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -3011,18 +3138,20 @@ const AdminPageInternal: React.FC = () => {
         </div>
       )}
       {/* 5. Mobile Native App Bottom Navigation Bar (Partner App Layout) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#16120E] border-t-2 border-amber-500/40 px-2 py-1.5 flex items-center justify-around md:hidden shadow-2xl backdrop-blur-md">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-stone-200/90 px-2 py-1.5 flex items-center justify-around md:hidden shadow-2xl backdrop-blur-md">
         <button
           type="button"
           onClick={() => setActiveTab('orders')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer relative ${
-            activeTab === 'orders' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer relative ${
+            activeTab === 'orders'
+              ? 'bg-amber-500/15 text-amber-900 font-black shadow-xs scale-105'
+              : 'text-stone-500 hover:text-stone-900'
           }`}
         >
-          <ShoppingBag className={`w-5 h-5 ${activeTab === 'orders' ? 'text-amber-400 scale-110' : ''}`} />
+          <ShoppingBag className={`w-5 h-5 ${activeTab === 'orders' ? 'text-amber-600' : ''}`} />
           <span className="text-[10px] font-bold">Orders ({orders.length})</span>
           {pendingOrdersCount > 0 && (
-            <span className="absolute -top-1 right-2 w-4 h-4 bg-red-600 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
+            <span className="absolute -top-1 right-2 w-4 h-4 bg-red-600 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse shadow-sm">
               {pendingOrdersCount}
             </span>
           )}
@@ -3031,43 +3160,49 @@ const AdminPageInternal: React.FC = () => {
         <button
           type="button"
           onClick={() => setActiveTab('products')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'products' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+            activeTab === 'products'
+              ? 'bg-amber-500/15 text-amber-900 font-black shadow-xs scale-105'
+              : 'text-stone-500 hover:text-stone-900'
           }`}
         >
-          <Utensils className={`w-5 h-5 ${activeTab === 'products' ? 'text-amber-400 scale-110' : ''}`} />
+          <Utensils className={`w-5 h-5 ${activeTab === 'products' ? 'text-amber-600' : ''}`} />
           <span className="text-[10px] font-bold">Menu ({products.length})</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'dashboard' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+            activeTab === 'dashboard'
+              ? 'bg-amber-500/15 text-amber-900 font-black shadow-xs scale-105'
+              : 'text-stone-500 hover:text-stone-900'
           }`}
         >
-          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-400 scale-110' : ''}`} />
+          <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-amber-600' : ''}`} />
           <span className="text-[10px] font-bold">Dashboard</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('broadcasts')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
-            activeTab === 'broadcasts' ? 'text-amber-400 font-black' : 'text-neutral-400 hover:text-white'
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+            activeTab === 'broadcasts'
+              ? 'bg-amber-500/15 text-amber-900 font-black shadow-xs scale-105'
+              : 'text-stone-500 hover:text-stone-900'
           }`}
         >
-          <Bell className={`w-5 h-5 ${activeTab === 'broadcasts' ? 'text-amber-400 scale-110' : ''}`} />
+          <Bell className={`w-5 h-5 ${activeTab === 'broadcasts' ? 'text-amber-600' : ''}`} />
           <span className="text-[10px] font-bold">Alerts</span>
         </button>
 
         <button
           type="button"
           onClick={() => setIsMobileMoreOpen(true)}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all cursor-pointer ${
+          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
             ['prices', 'gallery', 'videos', 'reviews', 'settings'].includes(activeTab)
-              ? 'text-amber-400 font-black'
-              : 'text-neutral-400 hover:text-white'
+              ? 'bg-amber-500/15 text-amber-900 font-black shadow-xs scale-105'
+              : 'text-stone-500 hover:text-stone-900'
           }`}
         >
           <MoreHorizontal className="w-5 h-5" />
@@ -3077,22 +3212,22 @@ const AdminPageInternal: React.FC = () => {
 
       {/* Mobile More Drawer / Sheet */}
       {isMobileMoreOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/75 backdrop-blur-xs md:hidden animate-fade-in">
-          <div className="bg-[#1C1713] border-t-2 border-amber-400 rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <h3 className="font-black text-sm text-amber-400 uppercase tracking-wide">
-                Admin Features & More
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs md:hidden animate-fade-in">
+          <div className="bg-[#FAF8F5] border-t-2 border-amber-400 rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+              <h3 className="font-black text-sm text-amber-900 uppercase tracking-wide flex items-center gap-2">
+                <span>⚙️ Partner Features & Tools</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsMobileMoreOpen(false)}
-                className="p-1 rounded-xl bg-neutral-800 text-neutral-300"
+                className="p-1.5 rounded-xl bg-stone-200 text-stone-700 hover:bg-stone-300"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+            <div className="grid grid-cols-2 gap-2.5 text-xs font-bold">
               {[
                 { id: 'prices', label: 'Price Manager', icon: DollarSign },
                 { id: 'settings', label: 'Restaurant Settings', icon: Settings },
@@ -3110,36 +3245,36 @@ const AdminPageInternal: React.FC = () => {
                       setActiveTab(tab.id as AdminTab);
                       setIsMobileMoreOpen(false);
                     }}
-                    className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                    className={`p-3.5 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer shadow-xs ${
                       isCur
-                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
-                        : 'bg-neutral-900 border-neutral-800 text-neutral-200 hover:bg-neutral-800'
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black'
+                        : 'bg-white border-stone-200 text-stone-800 hover:bg-stone-50'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isCur ? 'text-slate-950' : 'text-amber-400'}`} />
+                    <Icon className={`w-4 h-4 ${isCur ? 'text-slate-950' : 'text-amber-600'}`} />
                     <span>{tab.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-stone-200 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
                   setIsMobileMoreOpen(false);
                   syncInitialDataToCloud();
                 }}
-                className="px-4 py-2.5 rounded-xl bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-amber-500/15 text-amber-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-amber-200 hover:bg-amber-500 hover:text-slate-950 transition-colors"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Sync to Cloud</span>
+                <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                <span>Sync Cloud</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-stone-200 text-stone-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer hover:bg-stone-300 transition-colors"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Live Website</span>
