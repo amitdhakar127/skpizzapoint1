@@ -12,7 +12,7 @@ import {
   Sandwich,
   UtensilsCrossed,
 } from 'lucide-react';
-import { VideoHero } from '../components/VideoHero';
+import { ScrollFrameHero } from '../components/ScrollFrameHero';
 import { FoodStorytelling } from '../components/FoodStorytelling';
 import { ProductCard } from '../components/ProductCard';
 import { useApp } from '../context/AppContext';
@@ -26,8 +26,8 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-16 sm:space-y-24">
-      {/* 1. Premium Cinematic Full-Background Video Hero */}
-      <VideoHero />
+      {/* 1. Ultra-Smooth Cinematic Scroll-Scrub Video Frames Hero */}
+      <ScrollFrameHero />
 
       {/* 2. Restaurant Value Highlights Bar */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
