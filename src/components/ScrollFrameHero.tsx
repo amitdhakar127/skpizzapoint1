@@ -15,7 +15,7 @@ interface ScrollFrameHeroProps {
   totalFrames?: number;
 }
 
-export const ScrollFrameHero: React.FC<ScrollFrameHeroProps> = ({ totalFrames = 60 }) => {
+export const ScrollFrameHero: React.FC<ScrollFrameHeroProps> = ({ totalFrames = 123 }) => {
   const { settings, navigate } = useApp();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,7 @@ export const ScrollFrameHero: React.FC<ScrollFrameHeroProps> = ({ totalFrames = 
     let countLoaded = 0;
     let detectedFrames = totalFrames;
 
-    // Try detecting how many frames exist (supports standard 30, 45, 60, 80, 100 frames)
+    // Try detecting how many frames exist (supports standard 30, 45, 60, 80, 100, 123 frames)
     const preload = async () => {
       // First, test if frame 1 exists
       const testImg = new Image();
@@ -256,7 +256,7 @@ export const ScrollFrameHero: React.FC<ScrollFrameHeroProps> = ({ totalFrames = 
     <div
       ref={containerRef}
       className="relative w-full"
-      style={{ height: '240vh' }} // Gives 2.4 viewport heights of buttery-smooth scroll scrub track
+      style={{ height: '280vh' }} // Gives 2.8 viewport heights of buttery-smooth scroll scrub track for 123 frames
     >
       {/* Sticky Fullscreen Canvas Stage */}
       <div className="sticky top-0 left-0 w-full h-screen overflow-hidden bg-[#0E0C0A] flex items-center justify-center">
