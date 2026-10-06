@@ -1,3 +1,4 @@
+// SK Pizza Point - Core Data Types & Models
 export type ProductCategory = 'pizza' | 'burger' | 'sandwich';
 
 export type PizzaSize = 'Small' | 'Medium' | 'Large';
