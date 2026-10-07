@@ -12,7 +12,7 @@ git add -A
 
 echo.
 echo [2/3] Creating commit with all fixes...
-git commit -m "fix(app): fix login navigation, home page loading, Admin useMemo reference error, and route normalization"
+git commit -m "feat: 4-step admin order workflow, dedicated live GPS map tracking page, and Android heads-up push notifications with lock screen wake"
 
 echo.
 echo [3/3] Pushing to GitHub (git push origin main)...

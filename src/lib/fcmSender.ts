@@ -149,29 +149,11 @@ async function getGoogleOAuthAccessToken(): Promise<string | null> {
 
 /**
  * Sends FCM v1 push notification to all registered Admin devices (Android APK & Web Admin)
+ * Broadcasts to both topic 'admin_orders' and individual device tokens.
  */
 export async function sendOrderPushNotification(order: Order): Promise<void> {
-  if (!rtdb) return;
-
   try {
-    // 1. Fetch registered tokens from Realtime Database
-    const tokensSnap = await get(ref(rtdb, 'system/adminFcmTokens')).catch(() => null);
-    if (!tokensSnap || !tokensSnap.exists()) {
-      return;
-    }
-
-    const tokensVal = tokensSnap.val();
-    const tokenList: string[] = [];
-    Object.values(tokensVal).forEach((entry: any) => {
-      const t = entry?.token || entry;
-      if (typeof t === 'string' && t.trim().length > 10) {
-        tokenList.push(t.trim());
-      }
-    });
-
-    if (tokenList.length === 0) return;
-
-    // 2. Obtain Google OAuth 2.0 access token
+    // 1. Obtain Google OAuth 2.0 access token
     const accessToken = await getGoogleOAuthAccessToken();
     if (!accessToken) {
       console.warn('Could not generate FCM OAuth access token');
@@ -182,72 +164,139 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
       .map((it) => `${it.quantity}x ${it.productName}`)
       .join(', ');
 
-    // 3. Send FCM message to each token
-    const sends = tokenList.map(async (fcmToken) => {
-      const payload = {
-        message: {
-          token: fcmToken,
-          notification: {
-            title: '🚨 NEW ORDER RECEIVED! — SK Pizza Point',
-            body: `Order #${order.id} from ${order.customerName} (₹${order.finalTotal}): ${itemsSummary}`,
-          },
-          data: {
-            orderId: order.id,
-            customerName: order.customerName,
-            customerPhone: order.customerPhone || '',
-            amount: String(order.finalTotal),
-            orderType: order.orderType || 'delivery',
-            url: '/#/admin',
-          },
-          android: {
-            priority: 'HIGH',
-            notification: {
-              sound: 'default',
-              channel_id: 'sk_pizza_order_alerts',
-              priority: 'MAX',
-              notification_priority: 'PRIORITY_MAX',
-              default_sound: true,
-              default_vibrate_timings: true,
-            },
-          },
-          webpush: {
-            headers: {
-              Urgency: 'high',
-            },
-            notification: {
-              icon: 'https://i.imgur.com/x7VzA1Q.jpeg',
-              badge: 'https://i.imgur.com/x7VzA1Q.jpeg',
-              requireInteraction: true,
-            },
-          },
+    const title = '🚨 NEW ORDER RECEIVED! — SK Pizza Point';
+    const body = `Order #${order.id} from ${order.customerName} (₹${order.finalTotal}): ${itemsSummary}`;
+
+    const dataPayload = {
+      orderId: String(order.id),
+      customerName: String(order.customerName || 'Customer'),
+      customerPhone: String(order.customerPhone || ''),
+      amount: String(order.finalTotal || '0'),
+      orderType: String(order.orderType || 'delivery'),
+      itemsSummary: String(itemsSummary),
+      title: title,
+      body: body,
+      url: '/#/admin',
+    };
+
+    const androidConfig = {
+      priority: 'HIGH',
+      notification: {
+        sound: 'default',
+        channel_id: 'sk_pizza_order_alerts',
+        priority: 'MAX',
+        notification_priority: 'PRIORITY_MAX',
+        default_sound: true,
+        default_vibrate_timings: true,
+        visibility: 'PUBLIC',
+      },
+    };
+
+    const webpushConfig = {
+      headers: {
+        Urgency: 'high',
+      },
+      notification: {
+        icon: 'https://i.imgur.com/x7VzA1Q.jpeg',
+        badge: 'https://i.imgur.com/x7VzA1Q.jpeg',
+        requireInteraction: true,
+      },
+    };
+
+    const sendPromises: Promise<any>[] = [];
+
+    // A. Broadcast to topic 'admin_orders' (received by all subscribed Android Admin APKs)
+    const topicPayload = {
+      message: {
+        topic: 'admin_orders',
+        notification: {
+          title,
+          body,
         },
-      };
+        data: dataPayload,
+        android: androidConfig,
+      },
+    };
 
-      try {
-        const res = await fetch(
-          `https://fcm.googleapis.com/v1/projects/${SERVICE_ACCOUNT.project_id}/messages:send`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
-          }
-        );
-        if (!res.ok) {
-          const errText = await res.text();
-          console.warn('FCM dispatch response not OK:', errText);
-        } else {
-          console.log('✓ FCM push dispatched to device:', fcmToken.substring(0, 12) + '...');
+    sendPromises.push(
+      fetch(
+        `https://fcm.googleapis.com/v1/projects/${SERVICE_ACCOUNT.project_id}/messages:send`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(topicPayload),
         }
-      } catch (postErr) {
-        console.warn('FCM send error for token:', postErr);
-      }
-    });
+      )
+        .then((r) => {
+          if (r.ok) {
+            console.log('✓ FCM push dispatched to topic admin_orders');
+          } else {
+            r.text().then((t) => console.warn('FCM topic send warning:', t));
+          }
+        })
+        .catch((err) => console.warn('FCM topic send error:', err))
+    );
 
-    await Promise.allSettled(sends);
+    // B. Also send direct push to registered individual tokens from Realtime Database
+    if (rtdb) {
+      try {
+        const tokensSnap = await get(ref(rtdb, 'system/adminFcmTokens')).catch(() => null);
+        if (tokensSnap && tokensSnap.exists()) {
+          const tokensVal = tokensSnap.val();
+          const tokenList: string[] = [];
+          Object.values(tokensVal).forEach((entry: any) => {
+            const t = entry?.token || entry;
+            if (typeof t === 'string' && t.trim().length > 10) {
+              tokenList.push(t.trim());
+            }
+          });
+
+          tokenList.forEach((fcmToken) => {
+            const tokenPayload = {
+              message: {
+                token: fcmToken,
+                notification: {
+                  title,
+                  body,
+                },
+                data: dataPayload,
+                android: androidConfig,
+                webpush: webpushConfig,
+              },
+            };
+
+            sendPromises.push(
+              fetch(
+                `https://fcm.googleapis.com/v1/projects/${SERVICE_ACCOUNT.project_id}/messages:send`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(tokenPayload),
+                }
+              )
+                .then((r) => {
+                  if (r.ok) {
+                    console.log('✓ FCM push dispatched to device token:', fcmToken.substring(0, 10) + '...');
+                  }
+                })
+                .catch(() => {})
+            );
+          });
+        }
+      } catch (tokenErr) {
+        console.warn('Could not query adminFcmTokens:', tokenErr);
+      }
+    }
+
+    await Promise.allSettled(sendPromises);
   } catch (err) {
     console.warn('Background FCM push dispatch warning:', err);
   }
 }
+

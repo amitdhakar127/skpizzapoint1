@@ -32,8 +32,12 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.messaging.FirebaseMessaging;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import android.util.Log;
 
 public class MainActivity extends ComponentActivity {
 
@@ -68,10 +72,25 @@ public class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Turn screen on and show when locked for loud order alerts
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true);
+                setTurnScreenOn(true);
+            } else {
+                getWindow().addFlags(
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                );
+            }
+        } catch (Exception ignored) {}
+
         // Keep screen on for continuous kitchen monitoring
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         requestAppPermissions();
+        initFcmAndSubscribe();
 
         webView = new WebView(this);
         setContentView(webView);
@@ -82,6 +101,48 @@ public class MainActivity extends ComponentActivity {
         setupNativeOrderListener();
 
         webView.loadUrl(ADMIN_URL);
+    }
+
+    private void initFcmAndSubscribe() {
+        try {
+            // Subscribe to admin orders topic for immediate push broadcast
+            FirebaseMessaging.getInstance().subscribeToTopic("admin_orders")
+                    .addOnCompleteListener(task -> {
+                        Log.d("SKPizzaAdmin", "Subscribed to admin_orders topic: " + task.isSuccessful());
+                    });
+
+            // Fetch and upload registration token to Realtime Database
+            FirebaseMessaging.getInstance().getToken()
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful() && task.getResult() != null) {
+                            String token = task.getResult();
+                            Log.d("SKPizzaAdmin", "Admin device FCM token: " + token);
+                            registerAdminFcmToken(token);
+                        } else {
+                            Log.w("SKPizzaAdmin", "Failed to retrieve FCM token", task.getException());
+                        }
+                    });
+        } catch (Exception e) {
+            Log.w("SKPizzaAdmin", "initFcmAndSubscribe error", e);
+        }
+    }
+
+    public static void registerAdminFcmToken(String token) {
+        if (token == null || token.trim().isEmpty()) return;
+        try {
+            String cleanToken = token.replaceAll("[.#$\\[\\]]", "_");
+            FirebaseDatabase db = FirebaseDatabase.getInstance("https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app");
+            DatabaseReference tokenRef = db.getReference("system/adminFcmTokens/" + cleanToken);
+            Map<String, Object> map = new HashMap<>();
+            map.put("token", token);
+            map.put("platform", "android_admin_apk");
+            map.put("updatedAt", System.currentTimeMillis());
+            map.put("device", Build.MANUFACTURER + " " + Build.MODEL);
+            tokenRef.setValue(map);
+            Log.d("SKPizzaAdmin", "Registered admin FCM token: " + cleanToken);
+        } catch (Exception e) {
+            Log.w("SKPizzaAdmin", "Failed to upload FCM token to RTDB", e);
+        }
     }
 
     private void requestAppPermissions() {
@@ -210,6 +271,7 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        initFcmAndSubscribe();
         if (webView != null) {
             webView.onResume();
             webView.evaluateJavascript("if (typeof window !== 'undefined' && window.onAndroidResume) { window.onAndroidResume(); }", null);

@@ -2088,30 +2088,31 @@ _Please confirm this order and its preparation status._`;
         typeof window !== 'undefined' && window.location.origin
           ? window.location.origin
           : 'https://sk-pizza-point.web.app';
-      const trackLink = `${origin}/#track-${orderId}`;
+      const trackLink = `${origin}/#live-track-${orderId}`;
       const storeLocationUrl =
         settings.googleMapsUrl || 'https://maps.app.goo.gl/ahwPDzJqRtSEXVYb8?g_st=ac';
+      const reviewLink = `${origin}/#reviews`;
+
+      const itemsSummary = (order.items || [])
+        .map((it) => `${it.productName} (${it.size}×${it.quantity})`)
+        .join(', ');
 
       if (newStatus === 'Preparing') {
-        statusMsg = `Hello ${customerName}! 🍕\n\nYour order *#${orderId}* is now *BEING FRESHLY PREPARED* in our kitchen at SK Pizza Point!\nOur chefs are baking your pizzas hot with real mozzarella cheese and fresh toppings.\n\n🗺️ Live Order Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nExpected ready time: ~15-20 minutes!`;
+        statusMsg = `🍕 *SK PIZZA POINT — ORDER ACCEPT HO GAYA HAI!*\n\nNamaste *${customerName}*!\nAapka SK Pizza Point par order *#${orderId}* accept kar liya gaya hai! ✅\n\n🍕 *Aapka Order:*\n${itemsSummary}\n\n💰 *Bill Amount:* ₹${order.finalTotal}\n📍 *Delivery Address:* ${order.deliveryAddress || 'Store Counter'}\n\nHamari kitchen me aapka pizza fresh bake hona shuru ho gaya hai. Jaldi hi pickup aur delivery ke liye ready ho jayega!\n\n🗺️ *Live Order Status Track Link:*\n${trackLink}\n\nDhanyawad!\n*SK Pizza Point* 🍕`;
       } else if (newStatus === 'Out for delivery') {
-        const custGps =
-          order.customerLocation?.latitude && order.customerLocation?.longitude
-            ? `\n📍 Customer Delivery Pin: https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}`
-            : '';
         const riderGps =
           order.deliveryRiderLocation?.latitude && order.deliveryRiderLocation?.longitude
-            ? `\n🛵 Delivery Rider Live GPS: https://www.google.com/maps?q=${order.deliveryRiderLocation.latitude},${order.deliveryRiderLocation.longitude}`
+            ? `\n🛵 *Delivery Boy Live GPS Location:*\nhttps://www.google.com/maps?q=${order.deliveryRiderLocation.latitude},${order.deliveryRiderLocation.longitude}\n`
             : '';
-        statusMsg = `Hello ${customerName}! 🛵\n\nGreat news! Your order *#${orderId}* is packed hot and *OUT FOR DELIVERY*!\nOur delivery rider is on the way to your address.${custGps}${riderGps}\n\n🗺️ Live GPS Tracking: ${trackLink}\n🏪 Store Location: ${storeLocationUrl}\n\nPlease keep your phone nearby!`;
+        statusMsg = `🛵 *SK PIZZA POINT — ORDER PICKUP HO GAYA HAI!*\n\nNamaste *${customerName}*!\nAapka order *#${orderId}* (${itemsSummary}) kitchen se pickup ho gaya hai aur delivery partner aapke address ke liye nikal chuka hai! 🚀\n\n🗺️ *LIVE MAP TRACKING LINK:*\n${trackLink}\n${riderGps}\nUpar diye gaye Map link par click karke aap Delivery Boy ki live location aur route real-time me track kar sakte hain!\nRider jaldi hi aapke paas pahunch raha hai. Kripya apna phone active rakhein.\n\nDhanyawad!\n*SK Pizza Point* 🍕`;
       } else if (newStatus === 'Ready for Pickup') {
-        statusMsg = `Hello ${customerName}! 🛍️\n\nYour order *#${orderId}* is *READY FOR PICKUP* at our store!\nPlease visit the counter to collect your fresh, hot order.\n\n🏪 Store Location (Google Maps): ${storeLocationUrl}\n🗺️ Order Summary: ${trackLink}\n\nSee you soon at SK Pizza Point!`;
+        statusMsg = `🛍️ *SK PIZZA POINT — ORDER READY FOR PICKUP!*\n\nNamaste *${customerName}*!\nAapka order *#${orderId}* (${itemsSummary}) counter par pickup ke liye ready hai!\nAap store par aakar apna fresh pizza collect kar sakte hain.\n\n🏪 Store Location: ${storeLocationUrl}\n🗺️ Order Details: ${trackLink}\n\nDhanyawad, SK Pizza Point! 🍕`;
       } else if (newStatus === 'Delivered') {
-        statusMsg = `Hello ${customerName}! 🎉\n\nYour order *#${orderId}* has been *DELIVERED FRESH*!\n\nThank you for choosing SK Pizza Point. We hope you enjoy every bite!\nIf you loved our food, please leave a quick review: ${origin}/#reviews\n🏪 Store Location: ${storeLocationUrl}\n\nHave a great meal! 🍕❤️`;
+        statusMsg = `🎉 *SK PIZZA POINT — ORDER DELIVERED!*\n\nNamaste *${customerName}*!\nAapka order *#${orderId}* successfully deliver ho gaya hai! ✅\n\nSK Pizza Point choose karne ke liye aapka bahut-bahut dhanyawad! Hum ummeed karte hain ki aapko humara pizza pasand aaya hoga. 🍕❤️\n\n⭐ *Apna review zaroor dein:*\n${reviewLink}\n\nAgli baar fir milte hain!\n*SK Pizza Point*`;
       } else if (newStatus === 'Cancelled') {
-        statusMsg = `Hello ${customerName}.\n\nYour order *#${orderId}* has been marked as *Cancelled*.\nIf you have any questions or would like to reorder, please contact us at ${settings.whatsAppNumber}.\n🏪 Store Location: ${storeLocationUrl}`;
+        statusMsg = `Hello ${customerName}.\nAapka order *#${orderId}* cancel kar diya gaya hai.\nAap kisi bhi query ke liye humein call ya message kar sakte hain: ${settings.whatsAppNumber || '+919617142439'}.\n🏪 Store Location: ${storeLocationUrl}`;
       } else {
-        statusMsg = `Hello ${customerName}! Your order *#${orderId}* status has been updated to: *${newStatus}*.\nTrack live here: ${trackLink}\n🏪 Store: ${storeLocationUrl}`;
+        statusMsg = `Namaste ${customerName}!\nAapke order *#${orderId}* ka status update ho gaya hai: *${newStatus}*.\nLive map track yahan karein: ${trackLink}\n🏪 SK Pizza Point: ${storeLocationUrl}`;
       }
 
       let cleanPhone = (order.customerPhone || '').replace(/[^0-9]/g, '');

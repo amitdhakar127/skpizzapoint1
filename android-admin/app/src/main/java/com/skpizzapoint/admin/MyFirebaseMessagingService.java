@@ -46,14 +46,14 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             }
         }
 
-        // Wake up screen for incoming orders
+        // Wake up screen for incoming orders even when phone is locked or sleeping
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
                 PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                        PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
+                        PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
                         "SKPizzaPoint:NewOrderAlert");
-                wakeLock.acquire(10000); // 10 seconds
+                wakeLock.acquire(15000); // 15 seconds
             }
         } catch (Exception e) {
             Log.w(TAG, "WakeLock error", e);
@@ -64,25 +64,47 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
     private void showNotification(String title, String body) {
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, intent, PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
+                this, (int) System.currentTimeMillis(), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Uri defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
         if (defaultSoundUri == null) {
+            defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+        }
+        if (defaultSoundUri == null) {
             defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         }
+
+        // Play loud ringtone alarm immediately
+        try {
+            android.media.Ringtone ringtone = RingtoneManager.getRingtone(getApplicationContext(), defaultSoundUri);
+            if (ringtone != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ringtone.setVolume(1.0f);
+                }
+                ringtone.play();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Ringtone play error", e);
+        }
+
+        long[] vibrationPattern = new long[]{0, 800, 400, 800, 400, 800, 400, 800};
 
         NotificationCompat.Builder notificationBuilder =
                 new NotificationCompat.Builder(this, CHANNEL_ID)
                         .setSmallIcon(R.mipmap.ic_launcher)
                         .setContentTitle(title)
                         .setContentText(body)
+                        .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
                         .setAutoCancel(true)
                         .setSound(defaultSoundUri)
-                        .setVibrate(new long[]{0, 500, 200, 500, 200, 500})
+                        .setVibrate(vibrationPattern)
                         .setPriority(NotificationCompat.PRIORITY_MAX)
-                        .setContentIntent(pendingIntent);
+                        .setCategory(NotificationCompat.CATEGORY_ALARM)
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .setContentIntent(pendingIntent)
+                        .setFullScreenIntent(pendingIntent, true); // Crucial for lock screen heads-up popup!
 
         NotificationManager notificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -97,16 +119,17 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                     CHANNEL_ID,
                     "New Order Loud Alarms",
                     NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription("High priority sound and vibration alerts for incoming orders");
+            channel.setDescription("Critical heads-up sound and vibration alerts for incoming orders");
             channel.enableVibration(true);
-            channel.setVibrationPattern(new long[]{0, 500, 200, 500, 200, 500});
+            channel.setVibrationPattern(vibrationPattern);
             channel.setSound(defaultSoundUri, audioAttributes);
             channel.setBypassDnd(true);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             notificationManager.createNotificationChannel(channel);
         }
 
         if (notificationManager != null) {
-            notificationManager.notify((int) System.currentTimeMillis(), notificationBuilder.build());
+            notificationManager.notify((int) (System.currentTimeMillis() % 100000), notificationBuilder.build());
         }
     }
 
@@ -114,14 +137,6 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     public void onNewToken(@NonNull String token) {
         super.onNewToken(token);
         Log.d(TAG, "Refreshed FCM Token: " + token);
-        try {
-            String cleanToken = token.replaceAll("[.#$\\[\\]]", "_");
-            FirebaseDatabase.getInstance("https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app")
-                    .getReference("system/adminFcmTokens/" + cleanToken)
-                    .child("token")
-                    .setValue(token);
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to upload FCM token to RTDB", e);
-        }
+        MainActivity.registerAdminFcmToken(token);
     }
 }

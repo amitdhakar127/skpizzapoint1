@@ -19,6 +19,7 @@ import { ContactPage } from './pages/ContactPage';
 import { CustomerAuthPage } from './pages/CustomerAuthPage';
 import { AccountPage } from './pages/AccountPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
+import { LiveMapTrackingPage } from './pages/LiveMapTrackingPage';
 import { MyOrdersPage } from './pages/MyOrdersPage';
 import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
 import { GlobalSirenAlertBanner } from './components/GlobalSirenAlertBanner';
@@ -54,13 +55,18 @@ const AppContent: React.FC = () => {
       return <MyOrdersPage />;
     }
 
+    // Dedicated Clean 4:6 Live Map Tracking Page (Opened via WhatsApp Link or My Orders button)
     if (
+      currentPath.startsWith('/live-track') ||
+      currentPath.includes('live-track') ||
       currentPath.startsWith('/track') ||
       currentPath.startsWith('track-') ||
       currentPath.includes('track-')
     ) {
-      const cleanParam = currentPath.replace(/^\/?track[\/-]?/, '').replace(/^#/, '');
-      return <OrderTrackingPage orderIdParam={cleanParam} />;
+      const cleanParam = currentPath
+        .replace(/^\/?(?:live-track|track)[\/-]?/, '')
+        .replace(/^#/, '');
+      return <LiveMapTrackingPage orderIdParam={cleanParam} />;
     }
 
     if (currentPath.startsWith('/menu')) {

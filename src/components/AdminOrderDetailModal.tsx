@@ -39,6 +39,7 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
     updateOrderLocation,
     formatPrice,
     generateWhatsAppUrl,
+    generateCustomerStatusWhatsAppUrl,
     settings,
     showToast,
   } = useApp();
@@ -147,37 +148,99 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
 
         {/* Scrollable Modal Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6">
-          {/* Status Pipeline Buttons */}
-          <div className="space-y-2 bg-amber-50/70 p-4 rounded-2xl border border-amber-200">
-            <span className="text-xs font-black uppercase tracking-wider text-amber-950 block">
-              Update Live Order Status:
-            </span>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {primaryStatuses.map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => {
-                    if (st === 'Preparing' || st === 'Out for delivery') {
-                      acceptOrderWithLiveLocation(order.id, st);
-                    } else {
-                      updateOrderStatus(order.id, st);
-                    }
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-black transition-all cursor-pointer text-center ${
-                    order.status === st
-                      ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-400'
-                      : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200'
-                  }`}
-                >
-                  {st === 'Pending' && '📝 Pending'}
-                  {st === 'Preparing' && '🍕 In Process'}
-                  {st === 'Ready for Pickup' && '🛍️ Ready for Pickup'}
-                  {st === 'Out for delivery' && '🛵 Out for Delivery'}
-                  {st === 'Delivered' && '✅ Completed'}
-                  {st === 'Cancelled' && '❌ Cancelled'}
-                </button>
-              ))}
+          {/* 4-Step Order Workflow Pipeline */}
+          <div className="space-y-2.5 bg-amber-50/80 p-4 rounded-3xl border-2 border-amber-300 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-1.5">
+                <span>👨‍🍳 4-Step Order Workflow (Website + WhatsApp):</span>
+              </span>
+              <span className="text-[11px] font-bold text-amber-800">
+                Current: <strong>{order.status}</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {/* Step 1: Process */}
+              <button
+                type="button"
+                onClick={async () => {
+                  await updateOrderStatus(order.id, 'Pending');
+                  showToast('📝 1. Process: Status set to In Process.', 'info');
+                }}
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                  order.status === 'Pending' || order.status === 'Received'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs'
+                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200'
+                }`}
+                title="1. Process: Order received and in process"
+              >
+                <span className="text-sm">📝</span>
+                <span className="text-[11px] font-black">1. Process</span>
+                <span className="text-[9px] text-[#6B5B4F] font-normal">(New Order)</span>
+              </button>
+
+              {/* Step 2: Order Accept */}
+              <button
+                type="button"
+                onClick={async () => {
+                  await acceptOrderWithLiveLocation(order.id, 'Preparing');
+                  const url = generateCustomerStatusWhatsAppUrl(order, 'Preparing');
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                  showToast('✓ 2. Order Accept: Status updated on website & WhatsApp opened!', 'success');
+                }}
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                  order.status === 'Preparing'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs'
+                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200'
+                }`}
+                title="2. Order Accept: Click to accept, update website and open customer WhatsApp"
+              >
+                <span className="text-sm">🍕</span>
+                <span className="text-[11px] font-black">2. Order Accept</span>
+                <span className="text-[9px] text-[#6B5B4F] font-normal">(Baking Pizza)</span>
+              </button>
+
+              {/* Step 3: Order Pickup */}
+              <button
+                type="button"
+                onClick={async () => {
+                  await acceptOrderWithLiveLocation(order.id, 'Out for delivery');
+                  const url = generateCustomerStatusWhatsAppUrl(order, 'Out for delivery');
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                  showToast('🛵 3. Order Pickup: Live GPS connected & Live Map sent on WhatsApp!', 'success');
+                }}
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                  order.status === 'Out for delivery' || order.status === 'Ready for Pickup'
+                    ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-xs'
+                    : 'bg-white hover:bg-blue-50 text-[#55473E] border border-blue-200'
+                }`}
+                title="3. Order Pickup: Click to acquire live GPS, update website and send Live Map link on WhatsApp"
+              >
+                <span className="text-sm">🛵</span>
+                <span className="text-[11px] font-black">3. Order Pickup</span>
+                <span className="text-[9px] text-[#6B5B4F] font-normal">(Live Map Link)</span>
+              </button>
+
+              {/* Step 4: Order Successfully */}
+              <button
+                type="button"
+                onClick={async () => {
+                  await updateOrderStatus(order.id, 'Delivered');
+                  const url = generateCustomerStatusWhatsAppUrl(order, 'Delivered');
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                  showToast('✅ 4. Order Successfully: Delivered & WhatsApp thank-you sent!', 'success');
+                }}
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                  order.status === 'Delivered' || order.status === 'Completed'
+                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 shadow-xs'
+                    : 'bg-white hover:bg-emerald-50 text-[#55473E] border border-emerald-200'
+                }`}
+                title="4. Order Successfully: Mark order delivered and send confirmation on WhatsApp"
+              >
+                <span className="text-sm">✅</span>
+                <span className="text-[11px] font-black">4. Order Successfully</span>
+                <span className="text-[9px] text-[#6B5B4F] font-normal">(Delivered & Done)</span>
+              </button>
             </div>
           </div>
 
@@ -310,13 +373,13 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   <a
-                    href={`/#track-${order.id}`}
+                    href={`/#live-track-${order.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs inline-flex items-center gap-1 transition-all shadow-md active:scale-95 cursor-pointer"
-                    title="Open live customer tracking view"
+                    title="Open dedicated clean Live Map tracking view"
                   >
-                    <span>🗺️ Live System Tracker</span>
+                    <span>🗺️ Live Map Tracker</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>

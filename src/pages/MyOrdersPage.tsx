@@ -391,14 +391,15 @@ export const MyOrdersPage: React.FC = () => {
                           <span>Call Kitchen</span>
                         </a>
 
-                        {/* Track Button */}
+                        {/* Track Live Map Button */}
                         <button
                           type="button"
-                          onClick={() => navigate(`/track-${order.id}`)}
+                          onClick={() => navigate(`/live-track-${order.id}`)}
                           className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                          title="Open dedicated Live GPS Map tracking page"
                         >
                           <Compass className="w-3.5 h-3.5 text-slate-950 animate-spin-slow" />
-                          <span>Track Live</span>
+                          <span>🗺️ Live Map Track</span>
                         </button>
 
                         {/* WhatsApp Button */}

@@ -1720,11 +1720,11 @@ const AdminDashboardContent: React.FC = () => {
                                   }}
                                   className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-[#1E1915] focus:outline-none cursor-pointer"
                                 >
-                                  <option value="Pending">📝 Pending</option>
-                                  <option value="Preparing">🍕 In Process (Baking)</option>
+                                  <option value="Pending">1. Process (New Order)</option>
+                                  <option value="Preparing">2. Order Accept (Baking)</option>
                                   <option value="Ready for Pickup">🛍️ Ready for Pickup</option>
-                                  <option value="Out for delivery">🛵 Out for Delivery</option>
-                                  <option value="Delivered">✅ Completed</option>
+                                  <option value="Out for delivery">3. Order Pickup (Live Map)</option>
+                                  <option value="Delivered">4. Order Successfully</option>
                                   <option value="Cancelled">❌ Cancelled</option>
                                 </select>
                               </td>
@@ -1817,15 +1817,15 @@ const AdminDashboardContent: React.FC = () => {
                                   }`}
                                 >
                                   {st === 'Pending'
-                                    ? '📝 Pending'
+                                    ? '1. Process'
                                     : st === 'Preparing'
-                                    ? '🍕 In Process'
+                                    ? '2. Order Accept'
                                     : st === 'Ready for Pickup'
-                                    ? '🛍️ Pickup Ready'
+                                    ? '🛍️ Ready for Pickup'
                                     : st === 'Out for delivery'
-                                    ? '🛵 Out for Delivery'
+                                    ? '3. Order Pickup'
                                     : st === 'Delivered'
-                                    ? '✅ Completed'
+                                    ? '4. Order Successfully'
                                     : '❌ Cancelled'}
                                 </button>
                               ))}
@@ -2015,71 +2015,86 @@ const AdminDashboardContent: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              {/* Step 1: Process */}
                               <button
                                 type="button"
-                                onClick={() => updateOrderStatus(order.id, 'Pending')}
-                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                                  order.status === 'Pending'
-                                    ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-2 ring-amber-400'
+                                onClick={async () => {
+                                  await updateOrderStatus(order.id, 'Pending');
+                                  showToast('📝 1. Process: Order status set to In Process.', 'info');
+                                }}
+                                className={`py-2.5 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                                  order.status === 'Pending' || order.status === 'Received' || order.status === 'Draft'
+                                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-sm'
                                     : 'bg-white hover:bg-amber-50 text-[#55473E] border border-amber-200'
                                 }`}
+                                title="1. Process: Order received and in process"
                               >
-                                <span className="text-sm">📝</span>
-                                <span className="text-[11px]">1. New Pending</span>
+                                <span className="text-base">📝</span>
+                                <span className="text-[11px] font-black">1. Process</span>
+                                <span className="text-[9px] text-[#6B5B4F] font-normal">(New Order)</span>
                               </button>
 
+                              {/* Step 2: Order Accept */}
                               <button
                                 type="button"
                                 onClick={async () => {
                                   await acceptOrderWithLiveLocation(order.id, 'Preparing');
                                   const url = generateCustomerStatusWhatsAppUrl(order, 'Preparing');
                                   window.open(url, '_blank', 'noopener,noreferrer');
+                                  showToast('✓ 2. Order Accept: Status updated on website & WhatsApp opened!', 'success');
                                 }}
-                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
+                                className={`py-2.5 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
                                   order.status === 'Preparing'
-                                    ? 'bg-amber-500 text-slate-950 font-black shadow-sm ring-2 ring-amber-400'
+                                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-sm'
                                     : 'bg-white hover:bg-amber-50 text-[#55473E] border border-amber-200'
                                 }`}
-                                title="Set Preparing & notify customer on WhatsApp that pizza is baking"
+                                title="2. Order Accept: Click to accept, update website and send WhatsApp message to customer"
                               >
-                                <span className="text-sm">🍕</span>
-                                <span className="text-[11px]">2. Baking in Oven</span>
+                                <span className="text-base">🍕</span>
+                                <span className="text-[11px] font-black">2. Order Accept</span>
+                                <span className="text-[9px] text-[#6B5B4F] font-normal">(Website + WhatsApp)</span>
                               </button>
 
+                              {/* Step 3: Order Pickup */}
                               <button
                                 type="button"
                                 onClick={async () => {
                                   await acceptOrderWithLiveLocation(order.id, 'Out for delivery');
                                   const url = generateCustomerStatusWhatsAppUrl(order, 'Out for delivery');
                                   window.open(url, '_blank', 'noopener,noreferrer');
+                                  showToast('🛵 3. Order Pickup: Live GPS broadcasting & Live Map link sent on WhatsApp!', 'success');
                                 }}
-                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                                  order.status === 'Out for delivery'
-                                    ? 'bg-blue-600 text-white font-black shadow-sm ring-2 ring-blue-400'
+                                className={`py-2.5 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                                  order.status === 'Out for delivery' || order.status === 'Ready for Pickup'
+                                    ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-sm'
                                     : 'bg-white hover:bg-blue-50 text-[#55473E] border border-blue-200'
                                 }`}
-                                title="Set Out for Delivery & send live GPS tracking link to customer"
+                                title="3. Order Pickup: Click to acquire live GPS, update website and send WhatsApp tracking link"
                               >
-                                <span className="text-sm">🛵</span>
-                                <span className="text-[11px]">3. Out for Delivery</span>
+                                <span className="text-base">🛵</span>
+                                <span className="text-[11px] font-black">3. Order Pickup</span>
+                                <span className="text-[9px] text-[#6B5B4F] font-normal">(Live Map + GPS)</span>
                               </button>
 
+                              {/* Step 4: Order Successfully */}
                               <button
                                 type="button"
-                                onClick={() => {
-                                  updateOrderStatus(order.id, 'Delivered');
+                                onClick={async () => {
+                                  await updateOrderStatus(order.id, 'Delivered');
                                   const url = generateCustomerStatusWhatsAppUrl(order, 'Delivered');
                                   window.open(url, '_blank', 'noopener,noreferrer');
+                                  showToast('✅ 4. Order Successfully: Delivered on website & WhatsApp message sent!', 'success');
                                 }}
-                                className={`py-2 px-2.5 rounded-xl font-bold flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                                  order.status === 'Delivered'
-                                    ? 'bg-emerald-600 text-white font-black shadow-sm ring-2 ring-emerald-400'
+                                className={`py-2.5 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-1 transition-all cursor-pointer ${
+                                  order.status === 'Delivered' || order.status === 'Completed'
+                                    ? 'bg-emerald-600 text-white ring-2 ring-emerald-400 shadow-sm'
                                     : 'bg-white hover:bg-emerald-50 text-[#55473E] border border-emerald-200'
                                 }`}
-                                title="Set Delivered & send thank you message to customer"
+                                title="4. Order Successfully: Mark order delivered and send confirmation on WhatsApp"
                               >
-                                <span className="text-sm">✅</span>
-                                <span className="text-[11px]">4. Delivered & Done</span>
+                                <span className="text-base">✅</span>
+                                <span className="text-[11px] font-black">4. Order Successfully</span>
+                                <span className="text-[9px] text-[#6B5B4F] font-normal">(Delivered & Done)</span>
                               </button>
                             </div>
                           </div>
