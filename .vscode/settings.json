@@ -1,3 +1,6 @@
 {
-  "terminal.integrated.defaultProfile.windows": "Command Prompt"
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/firebase-hosting-pull-request.yml"
+  ]
 }

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SK Pizza Point Admin APK — Live Android Simulator & Tester</title>
+  <link rel="icon" type="image/jpeg" href="https://i.imgur.com/x7VzA1Q.jpeg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+    body {
+      background: radial-gradient(circle at 50% 10%, #241c16 0%, #100d0a 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+      max-width: 800px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 0%, #fcd34d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #a8988c;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .workspace {
+      display: flex;
+      gap: 36px;
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 1200px;
+    }
+    /* Android Phone Frame */
+    .phone-container {
+      position: relative;
+      width: 395px;
+      height: 820px;
+      background: #000;
+      border-radius: 48px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 0 12px #2b231e, 0 0 0 14px #42362e, 0 0 40px rgba(245, 158, 11, 0.2);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    /* Phone Speaker & Camera Punch-hole */
+    .status-bar {
+      height: 38px;
+      background: #181411;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #e5dcd4;
+      z-index: 10;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .camera-punchhole {
+      width: 10px;
+      height: 10px;
+      background: #000;
+      border-radius: 50%;
+      border: 2px solid #221b17;
+    }
+    /* App WebView Container */
+    .app-webview {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #181411;
+    }
+    /* Android Navigation Bar */
+    .nav-bar {
+      height: 28px;
+      background: #181411;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .nav-pill {
+      width: 120px;
+      height: 4px;
+      background: #786659;
+      border-radius: 999px;
+    }
+    /* Side Panel Controls */
+    .side-panel {
+      flex: 1;
+      min-width: 320px;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .card {
+      background: #1e1915;
+      border: 1px solid #3d3129;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #f59e0b;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-preview-box {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #14100d;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid #332822;
+    }
+    .app-icon-img {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      object-fit: cover;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+      border: 2px solid #f59e0b;
+    }
+    .app-meta {
+      flex: 1;
+    }
+    .app-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .app-sub {
+      font-size: 12px;
+      color: #a8988c;
+      margin-top: 2px;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #f59e0b;
+      color: #181411;
+      padding: 12px 18px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #fbbf24;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    }
+    .btn-secondary {
+      background: #2a221c;
+      color: #e5dcd4;
+      border: 1px solid #44372e;
+    }
+    .btn-secondary:hover {
+      background: #352b24;
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .btn-emerald {
+      background: #10b981;
+      color: #fff;
+    }
+    .btn-emerald:hover {
+      background: #059669;
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    .status-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 13px;
+      color: #d1c7bd;
+    }
+    .status-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge">📱 NATIVE APK LOCALHOST TESTER</div>
+    <h1>SK Pizza Point Admin APK — Live View</h1>
+    <p class="subtitle">This preview runs the exact Android WebView environment and Admin screen matching the native APK installation on Android devices.</p>
+  </header>
+
+  <div class="workspace">
+    <!-- Android Smartphone Shell -->
+    <div class="phone-container">
+      <div class="status-bar">
+        <span>12:45</span>
+        <div class="camera-punchhole"></div>
+        <span>📶 5G  🔋 100%</span>
+      </div>
+      <iframe class="app-webview" id="appFrame" src="/#/admin" title="Admin APK Interface"></iframe>
+      <div class="nav-bar">
+        <div class="nav-pill"></div>
+      </div>
+    </div>
+
+    <!-- Controls and Information -->
+    <div class="side-panel">
+      <!-- Active App Icon Card -->
+      <div class="card">
+        <div class="card-title">✨ Active App Icon on Mobile</div>
+        <div class="icon-preview-box">
+          <img class="app-icon-img" id="iconImg" src="https://i.imgur.com/x7VzA1Q.jpeg" alt="SK Pizza Point Icon">
+          <div class="app-meta">
+            <div class="app-name">SK Pizza Point Admin</div>
+            <div class="app-sub">Package: com.skpizzapoint.admin</div>
+            <div class="app-sub" style="color: #fbbf24; font-weight: 700; margin-top: 4px;">Version: 1.2 (Code: 3)</div>
+          </div>
+        </div>
+        <p style="font-size: 12px; color: #a8988c; margin-top: 10px; line-height: 1.4;">
+          This new brand icon (<a href="https://i.imgur.com/x7VzA1Q.jpeg" target="_blank" style="color:#f59e0b;">x7VzA1Q.jpeg</a>) is configured across all Android launcher densities (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi) and adaptive foregrounds.
+        </p>
+      </div>
+
+      <!-- Quick Actions Card -->
+      <div class="card">
+        <div class="card-title">⚡ Simulator Controls</div>
+        <div class="btn-group">
+          <button class="btn" onclick="document.getElementById('appFrame').src = '/#/admin';">
+            🔄 Reload APK Screen
+          </button>
+          <button class="btn btn-secondary" onclick="document.getElementById('appFrame').src = '/#/orders';">
+            📋 View Active Orders Tab
+          </button>
+          <button class="btn btn-secondary" onclick="document.getElementById('appFrame').src = '/#/';">
+            🍕 Switch to Customer View
+          </button>
+          <a class="btn btn-emerald" href="/#/admin" target="_blank">
+            🖥️ Open Full Window Admin Console
+          </a>
+        </div>
+      </div>
+
+      <!-- Verification Status Card -->
+      <div class="card">
+        <div class="card-title">🔍 APK Health Checks</div>
+        <ul class="status-list">
+          <li><span class="dot"></span> Native WebView Cache: <strong>Bypassed (LOAD_NO_CACHE)</strong></li>
+          <li><span class="dot"></span> Adaptive Icon Safe-Zone: <strong>72dp Centered</strong></li>
+          <li><span class="dot"></span> Order Siren Audio: <strong>Instant Playback Allowed</strong></li>
+          <li><span class="dot"></span> Screen WakeLock: <strong>Continuous Kitchen Display</strong></li>
+          <li><span class="dot"></span> Camera & Gallery Picker: <strong>Supported</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

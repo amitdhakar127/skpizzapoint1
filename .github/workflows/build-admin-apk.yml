@@ -35,7 +35,7 @@ jobs:
           if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
             printf '%s' "$FIREBASE_ANDROID_CONFIG" > android-admin/app/google-services.json
           elif [ ! -s "android-admin/app/google-services.json" ]; then
-            echo '{"project_info":{"project_number":"336176195310","firebase_url":"https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app","project_id":"sk-pizza-point","storage_bucket":"sk-pizza-point.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:336176195310:android:34a9b6c123ef890a","android_client_info":{"package_name":"com.skpizzapoint.admin"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyD-PlaceholderKey"}]}]}' > android-admin/app/google-services.json
+            echo '{"project_info":{"project_number":"336176195310","firebase_url":"https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app","project_id":"sk-pizza-point","storage_bucket":"sk-pizza-point.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:336176195310:android:34a9b6c123ef890a","android_client_info":{"package_name":"com.skpizzapoint.admin"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyCCYR2QyIICr9wbS-P5X1m9860TSmmnHco"}]}]}' > android-admin/app/google-services.json
           fi
 
       - name: Setup Python for Brand Icon Generation
@@ -47,41 +47,28 @@ jobs:
         run: |
           pip install --no-cache-dir pillow requests
 
-      - name: Sync Website Brand Logo into APK Icon
+      - name: Generate High-Resolution Android Brand Icons
         run: |
-          python3 -c "
-          import os, requests
-          from PIL import Image
+          python3 android-admin/generate_icons.py
 
-          densities = [
-              ('mipmap-mdpi', 48),
-              ('mipmap-hdpi', 72),
-              ('mipmap-xhdpi', 96),
-              ('mipmap-xxhdpi', 144),
-              ('mipmap-xxxhdpi', 192)
-          ]
-          res_dir = 'android-admin/app/src/main/res'
-
-          try:
-              headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-              r = requests.get('https://i.imgur.com/KRI3jtw.jpeg', headers=headers, timeout=20)
-              if r.status_code == 200:
-                  os.makedirs('tmp_logo', exist_ok=True)
-                  with open('tmp_logo/brand_logo.jpg', 'wb') as f:
-                      f.write(r.content)
-                  img = Image.open('tmp_logo/brand_logo.jpg').convert('RGBA')
-                  for folder, size in densities:
-                      target_dir = os.path.join(res_dir, folder)
-                      os.makedirs(target_dir, exist_ok=True)
-                      resized = img.resize((size, size), Image.Resampling.LANCZOS)
-                      resized.save(os.path.join(target_dir, 'ic_launcher.png'))
-                      resized.save(os.path.join(target_dir, 'ic_launcher_round.png'))
-                  print('✓ Successfully generated all high-res 2D brand launcher icons!')
-              else:
-                  print('External logo returned status:', r.status_code)
-          except Exception as e:
-              print('External logo download warning:', e)
-          "
+      - name: Verify All Brand Icons Generated
+        run: |
+          echo "Verifying launcher icons across all densities..."
+          test -f android-admin/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          test -f android-admin/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          test -f android-admin/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          test -f android-admin/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          test -f android-admin/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          echo "Verifying round launcher icons..."
+          test -f android-admin/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          echo "Verifying adaptive foreground icons..."
+          test -f android-admin/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+          test -f android-admin/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          test -f android-admin/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          test -f android-admin/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          test -f android-admin/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          ls -la android-admin/app/src/main/res/mipmap-xxxhdpi/
+          echo "All brand icons verified successfully!"
 
       - name: Build APK
         working-directory: android-admin

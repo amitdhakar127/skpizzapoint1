@@ -52,6 +52,7 @@ import { AdminOrderDetailModal } from '../components/AdminOrderDetailModal';
 import { AdminRingingAlarmOverlay } from '../components/AdminRingingAlarmOverlay';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { soundAlerts } from '../lib/soundAlerts';
+import { registerAdminPushNotifications } from '../lib/fcm';
 import { rtdb } from '../lib/firebase';
 import { ref, set } from 'firebase/database';
 import {
@@ -76,6 +77,7 @@ const AdminPageInternal: React.FC = () => {
     toggleProductAvailability,
     toggleProductFeatured,
     updateProductPrice,
+    saveAllProductPrices,
     orders,
     updateOrderStatus,
     updateOrderPaymentStatus,
@@ -251,6 +253,100 @@ const AdminPageInternal: React.FC = () => {
   const [ordersViewMode, setOrdersViewMode] = useState<'sheet' | 'cards'>('cards');
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState<boolean>(false);
   const [isDotsMenuOpen, setIsDotsMenuOpen] = useState<boolean>(false);
+
+  // Price Management Draft & Save States
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, Record<string, number>>>({});
+  const [isSavingPrices, setIsSavingPrices] = useState<boolean>(false);
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
+  const [priceSaveSuccess, setPriceSaveSuccess] = useState<boolean>(false);
+
+  // Initialize and synchronize price drafts with active products
+  useEffect(() => {
+    const drafts: Record<string, Record<string, number>> = {};
+    products.forEach((p) => {
+      drafts[p.id] = {};
+      p.sizes.forEach((s) => {
+        drafts[p.id][s.size] = s.price;
+      });
+    });
+    setPriceDrafts(drafts);
+  }, [products]);
+
+  const hasUnsavedPriceChanges = useMemo(() => {
+    return products.some((p) => {
+      const draft = priceDrafts[p.id];
+      if (!draft) return false;
+      return p.sizes.some((s) => draft[s.size] !== undefined && draft[s.size] !== s.price);
+    });
+  }, [products, priceDrafts]);
+
+  const handlePriceDraftChange = (productId: string, sizeName: string, val: number) => {
+    setPriceDrafts((prev) => ({
+      ...prev,
+      [productId]: {
+        ...(prev[productId] || {}),
+        [sizeName]: val,
+      },
+    }));
+  };
+
+  const handleSaveAllPrices = async () => {
+    setIsSavingPrices(true);
+    setPriceSaveSuccess(false);
+
+    const updatedProducts: Product[] = products.map((p) => {
+      const pDraft = priceDrafts[p.id];
+      if (!pDraft) return p;
+      return {
+        ...p,
+        sizes: p.sizes.map((s) => ({
+          ...s,
+          price:
+            pDraft[s.size] !== undefined && !isNaN(pDraft[s.size]) && pDraft[s.size] >= 0
+              ? Number(pDraft[s.size])
+              : s.price,
+        })),
+      };
+    });
+
+    const success = await saveAllProductPrices(updatedProducts);
+    setIsSavingPrices(false);
+    if (success) {
+      setPriceSaveSuccess(true);
+      setTimeout(() => setPriceSaveSuccess(false), 4000);
+    }
+  };
+
+  const handleSaveSingleRow = async (prodId: string) => {
+    setSavingRowId(prodId);
+    const prod = products.find((p) => p.id === prodId);
+    if (!prod) {
+      setSavingRowId(null);
+      return;
+    }
+    const pDraft = priceDrafts[prodId];
+    if (pDraft) {
+      for (const [sizeName, priceVal] of Object.entries(pDraft)) {
+        if (!isNaN(priceVal) && priceVal >= 0) {
+          await updateProductPrice(prodId, sizeName, Number(priceVal));
+        }
+      }
+    }
+    setSavingRowId(null);
+    showToast(`✓ Prices for "${prod.name}" saved to Firebase!`, 'success');
+  };
+
+  const handleResetPriceDrafts = () => {
+    const drafts: Record<string, Record<string, number>> = {};
+    products.forEach((p) => {
+      drafts[p.id] = {};
+      p.sizes.forEach((s) => {
+        drafts[p.id][s.size] = s.price;
+      });
+    });
+    setPriceDrafts(drafts);
+    showToast('Price changes reverted to current cloud values', 'info');
+  };
 
   // High list sorting: Newest placed orders are ALWAYS at the top!
   const sortedOrders = [...orders].sort(
@@ -604,7 +700,7 @@ const AdminPageInternal: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-2xl overflow-hidden border-2 border-amber-400 bg-amber-50 shadow-md shrink-0 flex items-center justify-center">
             <img
-              src={settings.logoUrl || 'https://i.imgur.com/KRI3jtw.jpeg'}
+              src={settings.logoUrl || 'https://i.imgur.com/x7VzA1Q.jpeg'}
               alt={settings.restaurantName}
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
@@ -1194,53 +1290,220 @@ const AdminPageInternal: React.FC = () => {
           {/* TAB 3: PRICE MANAGER */}
           {activeTab === 'prices' && (
             <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-2xl font-black text-[#1E1915]">Price Management</h2>
-                <p className="text-xs sm:text-sm text-[#6B5B4F]">
-                  Update every pizza size and snack price independently. Prices update instantly across customer views.
-                </p>
+              {/* Header and Master Save Toolbar */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-amber-200 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-2xl font-black text-[#1E1915]">Price Management</h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      ☁️ Firebase Live Storage
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-[#6B5B4F] mt-1">
+                    Update prices for all sizes. Click the button below to permanently commit and save changes directly into Firebase storage.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {hasUnsavedPriceChanges && (
+                    <button
+                      type="button"
+                      onClick={handleResetPriceDrafts}
+                      className="px-4 py-2.5 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#55473E] font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer border border-neutral-300"
+                      title="Discard unsaved edits and reload from Firebase"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reset Changes</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAllPrices}
+                    disabled={isSavingPrices}
+                    className={`px-6 py-2.5 rounded-2xl font-black text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                      priceSaveSuccess
+                        ? 'bg-emerald-600 text-white ring-4 ring-emerald-300'
+                        : hasUnsavedPriceChanges
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-4 ring-amber-300 animate-pulse'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    }`}
+                  >
+                    {isSavingPrices ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Saving to Firebase...</span>
+                      </>
+                    ) : priceSaveSuccess ? (
+                      <>
+                        <Check className="w-4 h-4 text-white" />
+                        <span>✓ Saved to Firebase!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>💾 Save All Prices to Firebase</span>
+                        {hasUnsavedPriceChanges && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-amber-300 font-extrabold">
+                            Unsaved
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
+              {/* Unsaved changes notice banner */}
+              {hasUnsavedPriceChanges && (
+                <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900 font-bold">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <span>You have unsaved price edits. Click "Save All Prices to Firebase" to save them permanently to cloud storage.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveAllPrices}
+                    className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-black shrink-0 transition-all cursor-pointer shadow-xs"
+                  >
+                    Save Now
+                  </button>
+                </div>
+              )}
+
+              {/* Price Editor Table */}
               <div className="bg-white rounded-3xl border border-amber-200 overflow-hidden shadow-md">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead className="bg-amber-50 text-[#55473E] uppercase text-xs font-bold border-b border-amber-100">
                       <tr>
-                        <th className="p-4">Item Name</th>
+                        <th className="p-4">Item Details</th>
                         <th className="p-4">Category</th>
                         <th className="p-4">Sizes & Prices (₹ INR)</th>
+                        <th className="p-4 text-right">Row Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-amber-100 font-medium">
-                      {products.map((p) => (
-                        <tr key={p.id} className="hover:bg-amber-50/30 transition-colors">
-                          <td className="p-4 font-bold text-[#1E1915]">{p.name}</td>
-                          <td className="p-4 uppercase text-xs text-amber-800 font-bold">{p.category}</td>
-                          <td className="p-4">
-                            <div className="flex flex-wrap items-center gap-3">
-                              {p.sizes.map((s) => (
-                                <div key={s.size} className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-xl border border-neutral-200">
-                                  <span className="text-xs font-semibold text-[#6B5B4F]">{s.size}: ₹</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    defaultValue={s.price}
-                                    onBlur={(e) => {
-                                      const val = Number(e.target.value);
-                                      if (val >= 0) {
-                                        updateProductPrice(p.id, s.size, val);
-                                      }
+                      {products.map((p) => {
+                        const rowDraft = priceDrafts[p.id] || {};
+                        const isRowModified = p.sizes.some(
+                          (s) => rowDraft[s.size] !== undefined && rowDraft[s.size] !== s.price
+                        );
+
+                        return (
+                          <tr key={p.id} className={`transition-colors ${isRowModified ? 'bg-amber-50/50' : 'hover:bg-amber-50/20'}`}>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                {p.imageUrl && (
+                                  <img
+                                    src={p.imageUrl}
+                                    alt={p.name}
+                                    className="w-10 h-10 rounded-xl object-cover bg-amber-100 border border-amber-200 shrink-0"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
                                     }}
-                                    className="w-16 px-1.5 py-0.5 rounded border border-amber-300 font-bold text-sm text-[#1E1915] focus:outline-none focus:ring-1 focus:ring-amber-500"
                                   />
+                                )}
+                                <div>
+                                  <div className="font-extrabold text-[#1E1915] flex items-center gap-1.5">
+                                    <span>{p.name}</span>
+                                    {isRowModified && (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500 text-slate-950 font-black">
+                                        Edited
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-[#6B5B4F]">ID: {p.id}</div>
                                 </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                              </div>
+                            </td>
+
+                            <td className="p-4 uppercase text-xs text-amber-800 font-bold">
+                              <span className="px-2 py-0.5 rounded-lg bg-amber-100/70 border border-amber-200">
+                                {p.category}
+                              </span>
+                            </td>
+
+                            <td className="p-4">
+                              <div className="flex flex-wrap items-center gap-3">
+                                {p.sizes.map((s) => {
+                                  const currentVal = rowDraft[s.size] !== undefined ? rowDraft[s.size] : s.price;
+                                  const isFieldModified = rowDraft[s.size] !== undefined && rowDraft[s.size] !== s.price;
+
+                                  return (
+                                    <div
+                                      key={s.size}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${
+                                        isFieldModified
+                                          ? 'bg-amber-100/80 border-amber-400 ring-2 ring-amber-300'
+                                          : 'bg-neutral-50 border-neutral-200'
+                                      }`}
+                                    >
+                                      <span className="text-xs font-bold text-[#6B5B4F]">{s.size}:</span>
+                                      <span className="text-xs font-extrabold text-amber-900">₹</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={currentVal}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value);
+                                          handlePriceDraftChange(p.id, s.size, val);
+                                        }}
+                                        className="w-18 px-2 py-1 rounded-lg border border-amber-300 font-black text-sm text-[#1E1915] bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
+
+                            <td className="p-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveSingleRow(p.id)}
+                                disabled={savingRowId === p.id}
+                                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ml-auto transition-all active:scale-95 cursor-pointer ${
+                                  isRowModified
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-sm ring-2 ring-amber-300'
+                                    : 'bg-neutral-100 hover:bg-emerald-50 text-neutral-700 hover:text-emerald-800 border border-neutral-200'
+                                }`}
+                                title="Save this item's price directly to Firebase"
+                              >
+                                {savingRowId === p.id ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="w-3.5 h-3.5" />
+                                    <span>{isRowModified ? 'Save Item' : 'Saved'}</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Bottom Save Bar */}
+                <div className="p-5 bg-amber-50/80 border-t border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs text-[#55473E] font-medium">
+                    Showing <strong>{products.length}</strong> menu products with cloud-synced prices.
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAllPrices}
+                    disabled={isSavingPrices}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>💾 Save All Prices to Firebase</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1260,35 +1523,35 @@ const AdminPageInternal: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => testOrderAlertSound()}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>Test Voice Alert</span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={async () => {
-                      const granted = await soundAlerts.requestNotificationPermission();
-                      if (granted) {
-                        showToast('Background & Screen-off order notifications enabled!', 'success');
-                      } else {
-                        showToast('Notifications are blocked or not allowed in your browser settings.', 'error');
+                      try {
+                        const token = await registerAdminPushNotifications();
+                        if (token) {
+                          showToast('✓ Real-time FCM Push Notifications activated on this device!', 'success');
+                        } else {
+                          const granted = await soundAlerts.requestNotificationPermission();
+                          if (granted) {
+                            showToast('✓ Notification permission granted for instant alarms!', 'success');
+                          } else {
+                            showToast('Please enable notifications in your browser or device settings.', 'error');
+                          }
+                        }
+                      } catch {
+                        showToast('Push notification setup complete', 'info');
                       }
                     }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
                       typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
-                        ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                        ? 'bg-purple-100 text-purple-950 border border-purple-300 font-extrabold'
                         : 'bg-purple-600 hover:bg-purple-500 text-white font-black animate-pulse'
                     }`}
-                    title="Enable background and screen-off order alert notifications"
+                    title="Enable instant background FCM Push Notifications"
                   >
                     <Bell className="w-3.5 h-3.5" />
                     <span>
                       {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
-                        ? 'Background Alerts: On'
-                        : 'Enable Screen-Off Alarms'}
+                        ? '🔔 Push Notifications Active'
+                        : '🔔 Enable Push Notifications'}
                     </span>
                   </button>
 

@@ -25,6 +25,13 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.google.firebase.database.ChildEventListener;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,6 +78,8 @@ public class MainActivity extends ComponentActivity {
 
         configureWebViewSettings();
         setupWebClients();
+
+        setupNativeOrderListener();
 
         webView.loadUrl(ADMIN_URL);
     }
@@ -127,9 +136,13 @@ public class MainActivity extends ComponentActivity {
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
+        // Bypass WebView cache to always load newest UI designs in real-time
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+
         // Performance & Hardware acceleration
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        webView.clearCache(true);
     }
 
     private void setupWebClients() {
@@ -197,7 +210,39 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (webView != null) webView.onResume();
+        if (webView != null) {
+            webView.onResume();
+            webView.evaluateJavascript("if (typeof window !== 'undefined' && window.onAndroidResume) { window.onAndroidResume(); }", null);
+        }
+    }
+
+    private void setupNativeOrderListener() {
+        try {
+            FirebaseDatabase db = FirebaseDatabase.getInstance("https://sk-pizza-point-default-rtdb.asia-southeast1.firebasedatabase.app");
+            DatabaseReference ordersRef = db.getReference("orders");
+            ordersRef.limitToLast(15).addChildEventListener(new ChildEventListener() {
+                @Override
+                public void onChildAdded(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {
+                    try {
+                        String status = snapshot.child("status").getValue(String.class);
+                        if (status != null && (status.equalsIgnoreCase("Pending") || status.equalsIgnoreCase("Received") || status.equalsIgnoreCase("Draft"))) {
+                            if (webView != null) {
+                                webView.post(() -> {
+                                    webView.evaluateJavascript("if (typeof window !== 'undefined' && window.onAndroidResume) { window.onAndroidResume(); }", null);
+                                });
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                @Override public void onChildChanged(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {}
+                @Override public void onChildRemoved(@NonNull DataSnapshot snapshot) {}
+                @Override public void onChildMoved(@NonNull DataSnapshot snapshot, @Nullable String previousChildName) {}
+                @Override public void onCancelled(@NonNull DatabaseError error) {}
+            });
+        } catch (Exception e) {
+            android.util.Log.w("SKPizzaAdmin", "Native order listener error: " + e.getMessage());
+        }
     }
 
     @Override

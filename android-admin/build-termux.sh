@@ -19,8 +19,12 @@ if [ -d "/data/data/com.termux/files/usr/lib/jvm/java-17-openjdk" ]; then
     export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
-chmod +x gradlew
+if command -v python3 &> /dev/null; then
+    echo "🎨 Generating native brand launcher icons..."
+    python3 generate_icons.py || true
+fi
 
+chmod +x gradlew
 echo "🔨 Building Debug APK with Gradle..."
 ./gradlew assembleDebug --no-daemon
 

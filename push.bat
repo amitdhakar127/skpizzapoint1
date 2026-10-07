@@ -1,45 +1,27 @@
 @echo off
-title SK Pizza Point - Auto Push
+title SK Pizza Point - Push To GitHub
 color 0A
 cls
 echo ========================================================
-echo       SK PIZZA POINT - DEPLOYING ALL REAL-TIME & APK UPDATES
+echo       SK PIZZA POINT - PUSHING ALL UPDATES TO GITHUB
 echo ========================================================
 echo.
 
-echo [1/5] Setting git user identity...
-git config user.name "SK Pizza Point"
-git config user.email "skpizzapoint@gmail.com"
-
-echo.
-echo [2/5] Syncing with GitHub remote...
-git fetch origin main
-git reset --mixed origin/main
-
-echo.
-echo [3/5] Adding all files and system updates...
+echo [1/3] Staging all files (git add -A)...
 git add -A
 
 echo.
-echo [4/5] Creating commit...
-git commit -m "fix(apk): fix CI python pillow icon step and enhance premium mobile app UI with 3-dots menu"
+echo [2/3] Creating commit with FCM push, instant order sync, price save button, and brand logo...
+git commit -m "feat(system): instant real-time order sync without reload, FCM v1 push alerts for Android & Web Admin, Firebase price save buttons, and brand logo update"
 
 echo.
-echo [5/5] Pushing to GitHub (origin main)...
+echo [3/3] Pushing to GitHub (git push origin main)...
 git push origin main
 
 echo.
-if %ERRORLEVEL% EQU 0 (
-    echo ========================================================
-    echo  [SUCCESS] All updates pushed to GitHub successfully!
-    echo  Website and Admin APK build will start automatically!
-    echo ========================================================
-) else (
-    echo ========================================================
-    echo  [NOTICE] Retrying push...
-    git push -u origin main
-    echo ========================================================
-)
+echo ========================================================
+echo Check the output above. If it says "Everything up-to-date"
+echo or shows object writing progress (100%%), push succeeded!
+echo ========================================================
 echo.
 pause
-

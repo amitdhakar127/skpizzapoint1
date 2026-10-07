@@ -289,8 +289,8 @@ class SoundAlertManager {
       try {
         new Notification(`🚨 NEW PIZZA ORDER #${order.id}!`, {
           body: `Customer: ${order.customerName} | Bill: ₹${order.amount}\nTap to open Kitchen Console!`,
-          icon: 'https://i.imgur.com/KRI3jtw.jpeg',
-          badge: 'https://i.imgur.com/KRI3jtw.jpeg',
+          icon: 'https://i.imgur.com/x7VzA1Q.jpeg',
+          badge: 'https://i.imgur.com/x7VzA1Q.jpeg',
           tag: `order-${order.id}`,
           requireInteraction: true,
         });

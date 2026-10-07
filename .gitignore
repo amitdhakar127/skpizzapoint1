@@ -15,3 +15,4 @@ android-admin/app/src/main/assets/
 android-admin/.gradle/
 android-admin/local.properties
 android-admin/app/build/
+service-account*.json

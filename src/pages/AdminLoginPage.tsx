@@ -112,7 +112,7 @@ export const AdminLoginPage: React.FC = () => {
         <div className="text-center space-y-3">
           <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-amber-400 bg-amber-50 shadow-md mx-auto flex items-center justify-center">
             <img
-              src={settings.logoUrl || 'https://i.imgur.com/KRI3jtw.jpeg'}
+              src={settings.logoUrl || 'https://i.imgur.com/x7VzA1Q.jpeg'}
               alt={settings.restaurantName}
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';

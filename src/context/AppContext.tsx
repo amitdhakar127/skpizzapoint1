@@ -48,7 +48,12 @@ import {
   update,
   remove,
   onValue,
+  onChildAdded,
+  query,
+  limitToLast,
+  goOnline,
 } from 'firebase/database';
+import { sendOrderPushNotification } from '../lib/fcmSender';
 
 interface ToastMessage {
   id: string;
@@ -170,6 +175,7 @@ interface AppContextType {
   toggleProductAvailability: (id: string) => Promise<void>;
   toggleProductFeatured: (id: string) => Promise<void>;
   updateProductPrice: (productId: string, sizeName: string, newPrice: number) => Promise<void>;
+  saveAllProductPrices: (products: Product[]) => Promise<boolean>;
   activeProductModal: Product | null;
   setActiveProductModal: (product: Product | null) => void;
 
@@ -480,6 +486,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [reviews, setReviews] = useState<Review[]>(() => {
     return [];
   });
+
+  // Recursive sanitizer to completely eliminate undefined values before saving to Firebase RTDB
+  const sanitizeForFirebase = <T,>(data: T): T => {
+    if (data === undefined) return null as unknown as T;
+    if (data === null || typeof data !== 'object') return data;
+    if (Array.isArray(data)) {
+      return data.map((item) => sanitizeForFirebase(item)) as unknown as T;
+    }
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(data)) {
+      if (val !== undefined) {
+        result[key] = sanitizeForFirebase(val);
+      }
+    }
+    return result as T;
+  };
 
   // Helper to identify legacy demo orders that must never show
   const isDemoRecord = (raw: any) => {
@@ -1016,6 +1038,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
+    // Instant Sub-second Child Order Listener: fires immediately when any order is created
+    const unsubChildOrders = onChildAdded(query(ordersRef, limitToLast(25)), (snapshot) => {
+      if (!snapshot.exists()) return;
+      const raw = snapshot.val();
+      const order = normalizeOrder(raw);
+      if (!order || isDemoRecord(order) || getDeletedOrderIds().has(order.id)) return;
+
+      if (!previousOrderIdsRef.current.has(order.id)) {
+        previousOrderIdsRef.current.add(order.id);
+
+        setOrders((prev) => {
+          if (prev.some((o) => o.id === order.id)) return prev;
+          return [order, ...prev].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+
+        const s = (order.status || '').toLowerCase().trim();
+        const isPending = s.includes('pending') || s.includes('received') || s === 'draft';
+        const isRecent = Date.now() - new Date(order.createdAt).getTime() < 30 * 60 * 1000;
+
+        const isAdminActive =
+          isAdminRef.current ||
+          (typeof window !== 'undefined' && (
+            localStorage.getItem('sk_pizza_admin_session') === 'true' ||
+            sessionStorage.getItem('sk_pizza_admin_session') === 'true' ||
+            window.location.hash.includes('admin') ||
+            window.location.pathname.includes('admin')
+          ));
+
+        if (isPending && isRecent && isAdminActive) {
+          setLatestAlertOrder(order);
+          soundAlerts.startContinuousOrderAlarm({
+            id: order.id,
+            customerName: order.customerName,
+            amount: order.finalTotal,
+          });
+          showToast(`🚨 Instant Order Alert: #${order.id} from ${order.customerName} (₹${order.finalTotal})`, 'success');
+
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('🍕 New SK Pizza Point Order!', {
+                body: `Order #${order.id} from ${order.customerName} for ₹${order.finalTotal}`,
+                icon: 'https://i.imgur.com/x7VzA1Q.jpeg',
+              });
+            } catch {}
+          }
+        }
+      }
+    });
+
     // Subscribe to broadcasts
     const broadcastsRef = ref(rtdb, 'broadcasts');
     const unsubBroadcasts = onValue(broadcastsRef, (snapshot) => {
@@ -1049,6 +1122,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Connection monitor & Reconnect keep-alive
+    const connectedRef = ref(rtdb, '.info/connected');
+    const unsubConnected = onValue(connectedRef, (snap) => {
+      const isConnected = !!snap.val();
+      setIsCloudDbConnected(isConnected);
+    });
+
+    const handleWakeup = () => {
+      try {
+        goOnline(rtdb);
+      } catch {}
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleWakeup);
+      window.addEventListener('online', handleWakeup);
+      (window as any).onAndroidResume = handleWakeup;
+    }
+
+    // Smart 8-second polling fallback: Guarantees zero missed orders even if WebSocket sleeps in WebView
+    const pollTimer = setInterval(async () => {
+      const isAdminActive =
+        isAdminRef.current ||
+        (typeof window !== 'undefined' && (
+          localStorage.getItem('sk_pizza_admin_session') === 'true' ||
+          sessionStorage.getItem('sk_pizza_admin_session') === 'true' ||
+          window.location.hash.includes('admin') ||
+          window.location.pathname.includes('admin')
+        ));
+
+      if (isAdminActive) {
+        try {
+          const snap = await get(query(ref(rtdb, 'orders'), limitToLast(20)));
+          if (snap.exists()) {
+            const val = snap.val();
+            const rawList = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+            const deletedIds = getDeletedOrderIds();
+            const fetched = rawList
+              .map(normalizeOrder)
+              .filter((o): o is Order => o !== null && !deletedIds.has(o.id) && !isDemoRecord(o));
+
+            setOrders((prev) => {
+              const map = new Map<string, Order>();
+              prev.forEach((o) => map.set(o.id, o));
+              let hasNew = false;
+              fetched.forEach((fo) => {
+                if (!map.has(fo.id)) {
+                  map.set(fo.id, fo);
+                  hasNew = true;
+                  const s = (fo.status || '').toLowerCase().trim();
+                  if (s.includes('pending') || s.includes('received') || s === 'draft') {
+                    soundAlerts.startContinuousOrderAlarm({
+                      id: fo.id,
+                      customerName: fo.customerName,
+                      amount: fo.finalTotal,
+                    });
+                  }
+                }
+              });
+              if (!hasNew) return prev;
+              return Array.from(map.values()).sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+            });
+          }
+        } catch {}
+      }
+    }, 8000);
+
     return () => {
       unsubProducts();
       unsubSettings();
@@ -1057,7 +1199,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubReviews();
       unsubDeletedOrders();
       unsubOrders();
+      unsubChildOrders();
       unsubBroadcasts();
+      unsubConnected();
+      clearInterval(pollTimer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleWakeup);
+        window.removeEventListener('online', handleWakeup);
+      }
     };
   }, []);
 
@@ -1073,7 +1222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const remaining: Order[] = [];
         for (const ord of list) {
           try {
-            await set(ref(rtdb, `orders/${ord.id}`), ord);
+            await set(ref(rtdb, `orders/${ord.id}`), sanitizeForFirebase(ord));
           } catch {
             remaining.push(ord);
           }
@@ -1508,10 +1657,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customerName: customer.customerName,
         customerPhone: customer.customerPhone,
         orderType: customer.orderType,
-        deliveryAddress: customer.deliveryAddress,
-        city: customer.city,
-        pinCode: customer.pinCode,
-        instructions: customer.instructions,
+        deliveryAddress: customer.deliveryAddress || '',
+        city: customer.city || '',
+        pinCode: customer.pinCode || '',
+        instructions: customer.instructions || '',
         items: itemsSnapshot,
         subtotal: orderSubtotal,
         deliveryFee: orderFee,
@@ -1520,7 +1669,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMode: 'Pay on Delivery / WhatsApp Confirmation',
         paymentStatus: customer.paymentStatus || 'Pending',
         status: 'Pending',
-        customerLocation: customer.customerLocation,
+        customerLocation: customer.customerLocation || undefined,
         createdAt: now,
         updatedAt: now,
       };
@@ -1547,27 +1696,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       clearCart();
 
-      // Fast write to Firebase Realtime Database with offline fallback queue
+      // Fast write to Firebase Realtime Database with guaranteed sanitation (no undefined values)
+      const sanitized = sanitizeForFirebase(newOrder);
       try {
         const cloudWrites: Promise<any>[] = [
-          set(ref(rtdb, `orders/${newOrder.id}`), newOrder),
+          set(ref(rtdb, `orders/${newOrder.id}`), sanitized),
         ];
 
         if (currentUser) {
           cloudWrites.push(
-            set(ref(rtdb, `userOrders/${currentUser.uid}/${newOrder.id}`), newOrder)
+            set(ref(rtdb, `userOrders/${currentUser.uid}/${newOrder.id}`), sanitized)
           );
           if (customer.customerPhone || customer.deliveryAddress) {
             cloudWrites.push(
-              update(ref(rtdb, `users/${currentUser.uid}`), {
-                phone: customer.customerPhone || undefined,
-                defaultAddress: customer.deliveryAddress || undefined,
-                city: customer.city || undefined,
-                pinCode: customer.pinCode || undefined,
-              }).catch(() => {})
+              update(
+                ref(rtdb, `users/${currentUser.uid}`),
+                sanitizeForFirebase({
+                  phone: customer.customerPhone || null,
+                  defaultAddress: customer.deliveryAddress || null,
+                  city: customer.city || null,
+                  pinCode: customer.pinCode || null,
+                })
+              ).catch(() => {})
             );
           }
         }
+
+        // Fire & forget push notification to admin devices (Android APK & Web Admin)
+        sendOrderPushNotification(newOrder).catch((e) => {
+          console.warn('Background push notification notice:', e);
+        });
 
         // Fast race: wait max 1.5s so user UI completes instantaneously
         await Promise.race([
@@ -2187,6 +2345,33 @@ _Please confirm this order and its preparation status._`;
     [products, updateCloudRecord, showToast]
   );
 
+  const saveAllProductPrices = useCallback(
+    async (updatedProducts: Product[]): Promise<boolean> => {
+      // 1. Optimistic local state update
+      setProducts(updatedProducts);
+
+      try {
+        const prodMap: Record<string, Product> = {};
+        const now = new Date().toISOString();
+        updatedProducts.forEach((p) => {
+          prodMap[p.id] = {
+            ...p,
+            updatedAt: now,
+          };
+        });
+
+        await set(ref(rtdb, 'products'), prodMap);
+        showToast('✓ All product prices saved successfully to Firebase Storage!', 'success');
+        return true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Error saving prices to Firebase';
+        showToast(`Failed to save prices: ${msg}`, 'error');
+        return false;
+      }
+    },
+    [showToast]
+  );
+
   // Settings Cloud Update
   const updateSettings = useCallback(
     async (updates: Partial<RestaurantSettings>) => {
@@ -2465,6 +2650,7 @@ _Please confirm this order and its preparation status._`;
         toggleProductAvailability,
         toggleProductFeatured,
         updateProductPrice,
+        saveAllProductPrices,
         activeProductModal,
         setActiveProductModal,
         settings,

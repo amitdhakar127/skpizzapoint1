@@ -225,7 +225,7 @@ export const INITIAL_SETTINGS: RestaurantSettings = {
   restaurantName: 'SK Pizza Point',
   tagline: 'Freshly Made. Seriously Delicious.',
   description: 'Discover delicious pizzas, burgers and sandwiches, freshly prepared at SK Pizza Point. Baked with premium cheese, rich toppings, and crispy golden crusts.',
-  logoUrl: 'https://i.imgur.com/KRI3jtw.jpeg',
+  logoUrl: 'https://i.imgur.com/x7VzA1Q.jpeg',
   heroImageUrl: 'https://i.imgur.com/ofhMdHe.jpeg',
   homepageMediaType: 'image',
   homepageVideoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-top-view-of-a-pizza-baking-in-an-oven-43956-large.mp4',
