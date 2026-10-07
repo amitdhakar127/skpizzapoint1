@@ -58,8 +58,14 @@ export const AdminLoginPage: React.FC = () => {
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
+              onClick={() => navigate('/')}
+              className="w-full py-2.5 px-4 rounded-xl border border-amber-300 text-amber-950 hover:bg-amber-50 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Open Live Storefront (Home)
+            </button>
+            <button
               onClick={() => logout()}
-              className="w-full py-2.5 px-4 rounded-xl border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full py-2 px-4 rounded-xl text-neutral-500 hover:text-red-600 text-xs font-semibold transition-colors cursor-pointer"
             >
               Sign Out from Admin
             </button>
@@ -85,6 +91,7 @@ export const AdminLoginPage: React.FC = () => {
     if (res.success) {
       try {
         localStorage.setItem('sk_admin_saved_email', email);
+        localStorage.setItem('sk_pizza_admin_session', 'true');
       } catch {}
       navigate('/admin');
     } else {

@@ -29,8 +29,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 const AppContent: React.FC = () => {
   const { currentPath, isAdmin } = useApp();
 
-  const isAdminRoute = currentPath === '/admin';
   const isAdminLoginRoute = currentPath === '/admin/login';
+  const isAdminRoute = currentPath === '/admin' || (currentPath.startsWith('/admin') && !isAdminLoginRoute);
 
   // Render current view
   const renderCurrentPage = () => {

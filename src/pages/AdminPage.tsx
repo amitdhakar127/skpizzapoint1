@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   Utensils,
@@ -338,7 +338,8 @@ const AdminDashboardContent: React.FC = () => {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  const pendingOrdersCount = orders.filter((o) => {
+  const pendingOrdersCount = (orders || []).filter((o) => {
+    if (!o) return false;
     const s = (o.status || '').toLowerCase().trim();
     return s.includes('pending') || s.includes('received') || s.includes('whatsapp') || s === 'draft';
   }).length;
@@ -505,12 +506,12 @@ const AdminDashboardContent: React.FC = () => {
   };
 
   // Metrics for dashboard
-  const totalOrders = orders.length;
-  const newOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('pending')).length;
-  const preparingOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('prep')).length;
-  const outForDeliveryOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('out')).length;
-  const completedOrders = orders.filter((o) => (o.status || '').toLowerCase().includes('deliver')).length;
-  const outOfStockCount = products.filter((p) => !p.isAvailable).length;
+  const totalOrders = (orders || []).length;
+  const newOrders = (orders || []).filter((o) => ((o && o.status) || '').toLowerCase().includes('pending')).length;
+  const preparingOrders = (orders || []).filter((o) => ((o && o.status) || '').toLowerCase().includes('prep')).length;
+  const outForDeliveryOrders = (orders || []).filter((o) => ((o && o.status) || '').toLowerCase().includes('out')).length;
+  const completedOrders = (orders || []).filter((o) => ((o && o.status) || '').toLowerCase().includes('deliver')).length;
+  const outOfStockCount = (products || []).filter((p) => p && !p.isAvailable).length;
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();

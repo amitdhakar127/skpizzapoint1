@@ -12,7 +12,7 @@ git add -A
 
 echo.
 echo [2/3] Creating commit with all fixes...
-git commit -m "fix(admin): resolve admin studio error, fix order privacy per user, add no-cache headers, instant real-time sync, and price save"
+git commit -m "fix(app): fix login navigation, home page loading, Admin useMemo reference error, and route normalization"
 
 echo.
 echo [3/3] Pushing to GitHub (git push origin main)...

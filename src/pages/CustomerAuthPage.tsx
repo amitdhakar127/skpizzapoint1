@@ -63,15 +63,21 @@ export const CustomerAuthPage: React.FC = () => {
           </div>
           <div className="space-y-3 pt-2">
             <button
-              onClick={() => navigate('/account')}
+              onClick={() => navigate('/')}
               className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>View My Orders & Profile</span>
+              <span>Go to Home Page</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => navigate('/menu')}
+              onClick={() => navigate('/account')}
               className="w-full py-2.5 px-4 rounded-xl border border-amber-200 text-[#1E1915] hover:bg-amber-50 text-xs font-semibold transition-colors cursor-pointer"
+            >
+              View My Orders & Profile
+            </button>
+            <button
+              onClick={() => navigate('/menu')}
+              className="w-full py-2.5 px-4 rounded-xl border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-semibold transition-colors cursor-pointer"
             >
               Order Pizzas Now
             </button>
@@ -106,7 +112,7 @@ export const CustomerAuthPage: React.FC = () => {
       setIsLoading(false);
 
       if (res.success) {
-        navigate('/account');
+        navigate('/');
       } else {
         setErrorMsg(res.error || 'Failed to create account.');
       }
@@ -116,7 +122,7 @@ export const CustomerAuthPage: React.FC = () => {
       setIsLoading(false);
 
       if (res.success) {
-        navigate('/account');
+        navigate('/');
       } else {
         setErrorMsg(res.error || 'Login failed. Please check credentials.');
       }

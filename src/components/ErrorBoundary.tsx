@@ -79,6 +79,7 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       if (typeof window !== 'undefined') {
         window.location.hash = '/';
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
       }
     } catch {}
     this.setState({ hasError: false, error: null });

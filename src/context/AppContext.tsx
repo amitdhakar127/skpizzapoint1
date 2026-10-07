@@ -358,10 +358,18 @@ export const normalizeOrder = (raw: any): Order | null => {
 
 export const normalizePath = (rawPath: string): string => {
   if (!rawPath) return '/';
-  let p = rawPath.replace(/^#+/, '').trim();
-  if (!p) return '/';
+  let p = rawPath.replace(/^#[!/]?/, '').trim();
+  if (p.includes('?')) {
+    p = p.split('?')[0];
+  }
+  p = p.trim();
+  if (!p || p === '/') return '/';
   if (!p.startsWith('/')) p = '/' + p;
-  return p;
+  p = p.replace(/\/+/g, '/');
+  if (p.length > 1 && p.endsWith('/')) {
+    p = p.slice(0, -1);
+  }
+  return p || '/';
 };
 
 // Permanently deleted orders set (ensures deleted orders never resurrect across devices)
@@ -444,6 +452,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Safety timeout: Ensure authentication loading state NEVER blocks UI indefinitely
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAuthLoading(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Passcode Admin Session (Allows instant APK / Mobile access with restaurant passcode)
   const [isPasscodeAdmin, setIsPasscodeAdmin] = useState<boolean>(() => {
@@ -1378,6 +1394,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             error: `Admin access denied. Account (${res.user.email || uid.slice(0, 8)}) is not authorized as administrator.`,
           };
         }
+
+        try {
+          sessionStorage.setItem('sk_pizza_admin_session', 'true');
+          localStorage.setItem('sk_pizza_admin_session', 'true');
+        } catch {}
+        setIsPasscodeAdmin(true);
 
         showToast('Authorized Administrator logged in to Admin Studio.', 'success');
         return { success: true };
