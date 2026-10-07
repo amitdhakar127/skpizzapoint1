@@ -63,11 +63,9 @@ import {
   getGoogleMapsNavigationUrl,
 } from '../lib/locationService';
 
-const AdminPageInternal: React.FC = () => {
+const AdminDashboardContent: React.FC = () => {
   const {
     currentUser,
-    isAdmin,
-    isAuthLoading,
     logout,
     navigate,
     products,
@@ -113,23 +111,6 @@ const AdminPageInternal: React.FC = () => {
     cloudDbError,
     showToast,
   } = useApp();
-
-  // If auth is verifying
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1E1915] text-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold text-neutral-300">Checking Firebase Admin Credentials...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If not logged in as authorized admin, show dedicated Admin Login page
-  if (!isAdmin) {
-    return <AdminLoginPage />;
-  }
 
   // Subscribe to siren alarm ringing state
   const [isAlarmRinging, setIsAlarmRinging] = useState<boolean>(() => soundAlerts.isAlarmRinging());
@@ -263,20 +244,24 @@ const AdminPageInternal: React.FC = () => {
   // Initialize and synchronize price drafts with active products
   useEffect(() => {
     const drafts: Record<string, Record<string, number>> = {};
-    products.forEach((p) => {
+    (products || []).forEach((p) => {
+      if (!p) return;
       drafts[p.id] = {};
-      p.sizes.forEach((s) => {
-        drafts[p.id][s.size] = s.price;
+      (p.sizes || []).forEach((s) => {
+        if (s && s.size) {
+          drafts[p.id][s.size] = s.price;
+        }
       });
     });
     setPriceDrafts(drafts);
   }, [products]);
 
   const hasUnsavedPriceChanges = useMemo(() => {
-    return products.some((p) => {
+    return (products || []).some((p) => {
+      if (!p) return false;
       const draft = priceDrafts[p.id];
       if (!draft) return false;
-      return p.sizes.some((s) => draft[s.size] !== undefined && draft[s.size] !== s.price);
+      return (p.sizes || []).some((s) => s && draft[s.size] !== undefined && draft[s.size] !== s.price);
     });
   }, [products, priceDrafts]);
 
@@ -294,12 +279,12 @@ const AdminPageInternal: React.FC = () => {
     setIsSavingPrices(true);
     setPriceSaveSuccess(false);
 
-    const updatedProducts: Product[] = products.map((p) => {
+    const updatedProducts: Product[] = (products || []).map((p) => {
       const pDraft = priceDrafts[p.id];
       if (!pDraft) return p;
       return {
         ...p,
-        sizes: p.sizes.map((s) => ({
+        sizes: (p.sizes || []).map((s) => ({
           ...s,
           price:
             pDraft[s.size] !== undefined && !isNaN(pDraft[s.size]) && pDraft[s.size] >= 0
@@ -3567,12 +3552,29 @@ const AdminPageInternal: React.FC = () => {
 };
 
 export const AdminPage: React.FC = () => {
+  const { isAuthLoading, isAdmin } = useApp();
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#1E1915] text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-neutral-300">Checking Firebase Admin Credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return <AdminLoginPage />;
+  }
+
   return (
     <ErrorBoundary
       fallbackTitle="Admin Studio Error"
       fallbackMessage="Unable to load the admin console. Please refresh."
     >
-      <AdminPageInternal />
+      <AdminDashboardContent />
     </ErrorBoundary>
   );
 };

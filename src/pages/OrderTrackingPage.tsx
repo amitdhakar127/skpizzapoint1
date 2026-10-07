@@ -5,33 +5,34 @@ import { ArrowLeft, Search, ShoppingBag, Clock, Package, CheckCircle2, ChevronRi
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Order } from '../types';
 
+import { rtdb } from '../lib/firebase';
+import { ref, get } from 'firebase/database';
+import { normalizeOrder } from '../context/AppContext';
+
 interface OrderTrackingPageProps {
   orderIdParam?: string;
 }
 
 const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdParam }) => {
-  const { orders, myOrders, activeOrder, currentUser, userProfile, navigate, formatPrice, generateWhatsAppUrl } = useApp();
+  const { myOrders, activeOrder, currentUser, userProfile, navigate, formatPrice, generateWhatsAppUrl } = useApp();
   const [searchId, setSearchId] = useState(orderIdParam || '');
+  const [directCloudOrder, setDirectCloudOrder] = useState<Order | null>(null);
+  const [isSearchingCloud, setIsSearchingCloud] = useState<boolean>(false);
 
-  // Combine device myOrders + user-relevant cloud orders
+  // Combine ONLY this device's own orders (myOrders) + this logged-in customer's own orders (userOrders)
   const candidateOrdersMap = new Map<string, Order>();
-  myOrders.forEach((o) => candidateOrdersMap.set(o.id, o));
-  orders.forEach((o) => {
-    if (!candidateOrdersMap.has(o.id)) {
-      if (currentUser && o.userId === currentUser.uid) candidateOrdersMap.set(o.id, o);
-      else if (currentUser?.email && o.customerEmail?.toLowerCase() === currentUser.email?.toLowerCase()) candidateOrdersMap.set(o.id, o);
-      else if (userProfile?.phone && o.customerPhone && o.customerPhone.trim() === userProfile.phone.trim()) candidateOrdersMap.set(o.id, o);
-    }
+  (myOrders || []).forEach((o) => {
+    if (o && o.id) candidateOrdersMap.set(o.id, o);
   });
 
-  const displayOrders = Array.from(candidateOrdersMap.values()).length > 0
-    ? Array.from(candidateOrdersMap.values())
-    : orders.slice(0, 5);
+  const displayOrders = Array.from(candidateOrdersMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
-  // If no param was given in URL and search is empty, auto-select activeOrder or latest order
+  // Auto-select ONLY this user's active order or latest local order
   useEffect(() => {
     if (!orderIdParam && !searchId) {
-      if (activeOrder) {
+      if (activeOrder && activeOrder.id) {
         setSearchId(activeOrder.id);
       } else if (displayOrders.length > 0) {
         setSearchId(displayOrders[0].id);
@@ -40,10 +41,41 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
   }, [orderIdParam, activeOrder, displayOrders.length]);
 
   const targetId = (orderIdParam || searchId).trim().toUpperCase();
-  const allOrdersPool = [...myOrders, ...orders];
-  const currentOrder = allOrdersPool.find(
-    (o) => o.id.toUpperCase() === targetId || o.id.toUpperCase().endsWith(targetId)
-  );
+
+  // If user searched for an exact Order ID that is not on this device, fetch it securely from Firebase RTDB
+  useEffect(() => {
+    if (!targetId || candidateOrdersMap.has(targetId)) {
+      setDirectCloudOrder(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    const fetchDirect = async () => {
+      setIsSearchingCloud(true);
+      try {
+        const snap = await get(ref(rtdb, `orders/${targetId}`));
+        if (snap.exists() && isSubscribed) {
+          const norm = normalizeOrder(snap.val());
+          if (norm) {
+            setDirectCloudOrder(norm);
+          } else {
+            setDirectCloudOrder(null);
+          }
+        } else if (isSubscribed) {
+          setDirectCloudOrder(null);
+        }
+      } catch {
+        if (isSubscribed) setDirectCloudOrder(null);
+      } finally {
+        if (isSubscribed) setIsSearchingCloud(false);
+      }
+    };
+
+    fetchDirect();
+    return () => { isSubscribed = false; };
+  }, [targetId]);
+
+  const currentOrder = candidateOrdersMap.get(targetId) || directCloudOrder || null;
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] py-10 px-4 sm:px-6 lg:px-8">
