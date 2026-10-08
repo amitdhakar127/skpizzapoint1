@@ -25,10 +25,20 @@ import { BroadcastAlertBanner } from './components/BroadcastAlertBanner';
 import { GlobalSirenAlertBanner } from './components/GlobalSirenAlertBanner';
 import { AdminPage } from './pages/AdminPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { ThankYouPage } from './pages/ThankYouPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
+import { trackPageView } from './lib/analytics';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const { currentPath, isAdmin } = useApp();
+
+  // Track page views in Google Analytics 4
+  React.useEffect(() => {
+    trackPageView(currentPath);
+  }, [currentPath]);
 
   const isAdminLoginRoute = currentPath === '/admin/login';
   const isAdminRoute = currentPath === '/admin' || (currentPath.startsWith('/admin') && !isAdminLoginRoute);
@@ -97,8 +107,28 @@ const AppContent: React.FC = () => {
       return <ContactPage />;
     }
 
-    // Default: Home Page
-    return <HomePage />;
+    if (currentPath === '/thank-you' || currentPath.startsWith('/thank-you')) {
+      return <ThankYouPage />;
+    }
+
+    if (currentPath === '/privacy') {
+      return <PrivacyPage />;
+    }
+
+    if (currentPath === '/terms') {
+      return <TermsPage />;
+    }
+
+    if (currentPath === '/404') {
+      return <NotFoundPage />;
+    }
+
+    if (currentPath === '/' || currentPath === '') {
+      return <HomePage />;
+    }
+
+    // Friendly 404 Not Found Page for any unknown URLs
+    return <NotFoundPage />;
   };
 
   if (isAdminRoute || isAdminLoginRoute) {

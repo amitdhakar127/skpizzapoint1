@@ -220,10 +220,10 @@ export const Footer: React.FC = () => {
           <p>© {new Date().getFullYear()} SK Pizza Point. All rights reserved.</p>
 
           <div className="flex items-center gap-6">
-            <button onClick={() => navigate('/contact')} className="hover:text-amber-400 transition-colors">
+            <button onClick={() => navigate('/terms')} className="hover:text-amber-400 transition-colors">
               Terms & Conditions
             </button>
-            <button onClick={() => navigate('/contact')} className="hover:text-amber-400 transition-colors">
+            <button onClick={() => navigate('/privacy')} className="hover:text-amber-400 transition-colors">
               Privacy Policy
             </button>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ShoppingBag,
   ArrowLeft,
@@ -21,6 +21,7 @@ import {
 import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 import { Order, LiveLocation } from '../types';
+import { trackPizzaOrderConversion } from '../lib/analytics';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
 import {
   acquireLiveLocation,
@@ -55,6 +56,9 @@ export const CheckoutPage: React.FC = () => {
   const [city, setCity] = useState(userProfile?.city || '');
   const [pinCode, setPinCode] = useState(userProfile?.pinCode || '');
   const [instructions, setInstructions] = useState('');
+  // Anti-spam bot trap honeypot state & submission rate-limiting
+  const [botHoneypot, setBotHoneypot] = useState('');
+  const lastSubmitTimeRef = useRef<number>(0);
 
   // Live Location GPS State
   const [customerLocation, setCustomerLocation] = useState<LiveLocation | null>(null);
@@ -260,20 +264,28 @@ export const CheckoutPage: React.FC = () => {
             </div>
 
             {/* Action buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
               <button
                 onClick={() => navigate(`/track-${completedOrder.id}`)}
                 className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition-colors text-center shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
                 <Compass className="w-4 h-4 animate-spin-slow" />
-                <span>Track This Order Live</span>
+                <span>Track Live</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/thank-you')}
+                className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Thank You Screen</span>
               </button>
 
               <button
                 onClick={() => navigate('/my-orders')}
                 className="py-3 px-4 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
-                <span>View All My Orders</span>
+                <span>My Orders</span>
               </button>
 
               <a
@@ -314,12 +326,29 @@ export const CheckoutPage: React.FC = () => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 1. Anti-Spam Bot Trap: If honeypot has been touched, abort quietly
+    if (botHoneypot.trim()) {
+      console.warn('[Security] Bot order submission blocked by honeypot');
+      return;
+    }
+
+    // 2. Client-side Rate Limiting: Prevent duplicate rapid submissions within 4 seconds
+    const now = Date.now();
+    if (now - lastSubmitTimeRef.current < 4000) {
+      showToast('Please wait a moment before resubmitting.', 'info');
+      return;
+    }
+    lastSubmitTimeRef.current = now;
+
+    // 3. Clean Input Validation
     if (!customerName.trim()) {
       showToast('Please enter your name', 'error');
       return;
     }
-    if (!customerPhone.trim() || customerPhone.replace(/[^0-9]/g, '').length < 8) {
-      showToast('Please enter a valid phone number (at least 8-10 digits)', 'error');
+
+    const phoneDigits = customerPhone.replace(/[^0-9]/g, '');
+    if (!customerPhone.trim() || phoneDigits.length < 10) {
+      showToast('Please enter a valid 10-digit mobile number', 'error');
       return;
     }
 
@@ -369,6 +398,14 @@ export const CheckoutPage: React.FC = () => {
       } catch {
         // Confetti fallback
       }
+
+      // Track key conversion event in Google Analytics 4 (GA4 Purchase & Lead)
+      trackPizzaOrderConversion({
+        id: newOrder.id,
+        finalTotal: newOrder.finalTotal,
+        items: newOrder.items,
+        orderType: newOrder.orderType,
+      });
 
       setCompletedOrder(newOrder);
 
@@ -465,6 +502,20 @@ export const CheckoutPage: React.FC = () => {
                   <span>Store Pickup</span>
                 </button>
               </div>
+            </div>
+
+            {/* Anti-Spam Bot Trap Honeypot Field */}
+            <div style={{ display: 'none', position: 'absolute', left: '-9999px', opacity: 0 }} aria-hidden="true">
+              <label htmlFor="checkout_bot_trap">Do not fill this field</label>
+              <input
+                id="checkout_bot_trap"
+                type="text"
+                name="website_url_hp"
+                tabIndex={-1}
+                autoComplete="off"
+                value={botHoneypot}
+                onChange={(e) => setBotHoneypot(e.target.value)}
+              />
             </div>
 
             {/* Name & Phone */}

@@ -15,6 +15,7 @@ import {
 import { ScrollFrameHero } from '../components/ScrollFrameHero';
 import { FoodStorytelling } from '../components/FoodStorytelling';
 import { ProductCard } from '../components/ProductCard';
+import { FAQSection } from '../components/FAQSection';
 import { useApp } from '../context/AppContext';
 
 export const HomePage: React.FC = () => {
@@ -246,17 +247,30 @@ export const HomePage: React.FC = () => {
           ))}
         </div>
 
-        <div className="text-center pt-2">
+        <div className="text-center pt-2 flex flex-wrap items-center justify-center gap-4">
           <button
             onClick={() => navigate('/reviews')}
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold text-amber-800 hover:text-amber-900 hover:underline"
           >
             <span>Read All Verified Reviews or Leave One →</span>
           </button>
+
+          <a
+            href={settings.googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 text-amber-950 border border-amber-300 font-extrabold text-xs hover:bg-amber-500 transition-all"
+          >
+            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
+            <span>Rate & Review on Google Maps</span>
+          </a>
         </div>
       </section>
 
-      {/* 8. WhatsApp Direct Order Callout */}
+      {/* 8. Interactive Frequently Asked Questions (FAQ) Accordion */}
+      <FAQSection />
+
+      {/* 9. WhatsApp Direct Order Callout */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="rounded-3xl bg-gradient-to-br from-amber-500 via-amber-500 to-amber-600 p-8 sm:p-12 text-slate-950 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 max-w-xl text-center md:text-left z-10">

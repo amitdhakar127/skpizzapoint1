@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>404 - Page Not Found | SK Pizza Point</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="icon" type="image/jpeg" href="https://i.imgur.com/x7VzA1Q.jpeg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background-color: #181411;
+        color: #FDFBF7;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 20px;
+        text-align: center;
+      }
+      .card {
+        max-width: 540px;
+        background: #231D18;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 28px;
+        padding: 48px 32px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+      .slice-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        background: rgba(245, 158, 11, 0.15);
+        color: #F59E0B;
+        border-radius: 24px;
+        font-size: 40px;
+        margin-bottom: 24px;
+      }
+      h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 64px;
+        font-weight: 900;
+        line-height: 1;
+        color: #F59E0B;
+        margin-bottom: 8px;
+      }
+      h2 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 24px;
+        font-weight: 800;
+        color: #FFFFFF;
+        margin-bottom: 12px;
+      }
+      p {
+        color: #A8988C;
+        font-size: 15px;
+        line-height: 1.6;
+        margin-bottom: 32px;
+      }
+      .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      @media(min-width: 480px) {
+        .btn-group { flex-direction: row; justify-content: center; }
+      }
+      .btn {
+        display: inline-block;
+        padding: 14px 24px;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 14px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+      }
+      .btn-primary {
+        background: #F59E0B;
+        color: #181411;
+      }
+      .btn-primary:hover {
+        background: #FBBF24;
+        transform: translateY(-2px);
+      }
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: #FDFBF7;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="slice-badge">🍕</div>
+      <h1>404</h1>
+      <h2>Oops! This Slice Went Missing</h2>
+      <p>The page you are looking for might have been eaten, removed, or is temporarily baking in the oven.</p>
+      <div class="btn-group">
+        <a href="/" class="btn btn-primary">Back to Home</a>
+        <a href="/#/menu" class="btn btn-secondary">Explore Menu</a>
+      </div>
+    </div>
+  </body>
+</html>

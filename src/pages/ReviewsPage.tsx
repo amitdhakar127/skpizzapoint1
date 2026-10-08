@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Star, MessageSquare, CheckCircle2, User, Send, Sparkles } from 'lucide-react';
+import { Star, MessageSquare, CheckCircle2, User, Send, Sparkles, MapPin, ExternalLink } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const ReviewsPage: React.FC = () => {
-  const { reviews, addReview } = useApp();
+  const { reviews, addReview, settings } = useApp();
   const [customerName, setCustomerName] = useState('');
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [botTrap, setBotTrap] = useState('');
 
   const approvedReviews = reviews.filter((r) => r.isApproved);
   const averageRating =
@@ -18,6 +19,7 @@ export const ReviewsPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (botTrap.trim()) return; // Honeypot protection
     if (!comment.trim()) return;
     addReview(customerName || 'Valued Guest', rating, comment);
     setComment('');
@@ -190,15 +192,46 @@ export const ReviewsPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Anti-Spam Bot Trap Honeypot Field */}
+                <div style={{ display: 'none', position: 'absolute', left: '-9999px', opacity: 0 }} aria-hidden="true">
+                  <label htmlFor="review_bot_trap">Do not fill this</label>
+                  <input
+                    id="review_bot_trap"
+                    type="text"
+                    name="bot_field_trap"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={botTrap}
+                    onChange={(e) => setBotTrap(e.target.value)}
+                  />
+                </div>
+
                 <button
                   type="submit"
-                  className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
                   <span>Submit Review</span>
                 </button>
               </form>
             )}
+
+            {/* Google Reviews Direct External Link */}
+            <div className="pt-4 border-t border-amber-100 space-y-2">
+              <span className="text-xs text-[#6B5B4F] font-semibold block">
+                Have a Google account?
+              </span>
+              <a
+                href={settings.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 px-4 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-[#1E1915] font-extrabold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                <span>Rate Us Directly on Google Maps</span>
+                <ExternalLink className="w-3 h-3 text-[#8A7B70]" />
+              </a>
+            </div>
           </div>
         </div>
       </div>

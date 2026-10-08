@@ -57,7 +57,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenDetails
         {!imgError ? (
           <img
             src={product.imageUrl}
-            alt={product.name}
+            alt={`${product.name} - Fresh Handcrafted Pizza at SK Pizza Point`}
             onError={() => setImgError(true)}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
