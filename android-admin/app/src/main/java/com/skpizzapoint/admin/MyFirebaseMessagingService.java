@@ -20,40 +20,41 @@ import com.google.firebase.messaging.RemoteMessage;
 public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "SKPizzaFCM";
-    private static final String CHANNEL_ID = "sk_pizza_order_alerts";
+    private static final String CHANNEL_ID = "sk_pizza_order_alerts_v3";
+    private static android.media.MediaPlayer activeMediaPlayer = null;
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
         Log.d(TAG, "From: " + remoteMessage.getFrom());
 
-        String title = "🚨 NEW ORDER RECEIVED!";
-        String body = "A new customer order has been placed. Tap to open kitchen.";
+        String title = "🚨 NEW ORDER RECEIVED! — SK Pizza Point";
+        String body = "A new customer order has been placed. Tap to view kitchen details.";
 
-        if (remoteMessage.getNotification() != null) {
-            if (remoteMessage.getNotification().getTitle() != null) {
-                title = remoteMessage.getNotification().getTitle();
-            }
-            if (remoteMessage.getNotification().getBody() != null) {
-                body = remoteMessage.getNotification().getBody();
-            }
-        } else if (remoteMessage.getData().size() > 0) {
+        if (remoteMessage.getData().size() > 0) {
             if (remoteMessage.getData().containsKey("title")) {
                 title = remoteMessage.getData().get("title");
             }
             if (remoteMessage.getData().containsKey("body")) {
                 body = remoteMessage.getData().get("body");
             }
+        } else if (remoteMessage.getNotification() != null) {
+            if (remoteMessage.getNotification().getTitle() != null) {
+                title = remoteMessage.getNotification().getTitle();
+            }
+            if (remoteMessage.getNotification().getBody() != null) {
+                body = remoteMessage.getNotification().getBody();
+            }
         }
 
-        // Wake up screen for incoming orders even when phone is locked or sleeping
+        // 1. Wake up screen immediately even when mobile screen is OFF or locked
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
                 PowerManager.WakeLock wakeLock = pm.newWakeLock(
-                        PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
-                        "SKPizzaPoint:NewOrderAlert");
-                wakeLock.acquire(15000); // 15 seconds
+                        PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
+                        "SKPizzaPoint:NewOrderAlertWake");
+                wakeLock.acquire(30000); // 30 seconds
             }
         } catch (Exception e) {
             Log.w(TAG, "WakeLock error", e);
@@ -76,20 +77,57 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
             defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         }
 
-        // Play loud ringtone alarm immediately
+        // 2. Play loud alarm using AudioAttributes.USAGE_ALARM (rings even in silent/vibrate mode)
         try {
-            android.media.Ringtone ringtone = RingtoneManager.getRingtone(getApplicationContext(), defaultSoundUri);
-            if (ringtone != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    ringtone.setVolume(1.0f);
-                }
-                ringtone.play();
+            if (activeMediaPlayer != null) {
+                try {
+                    activeMediaPlayer.stop();
+                    activeMediaPlayer.release();
+                } catch (Exception ignored) {}
+                activeMediaPlayer = null;
             }
+
+            activeMediaPlayer = new android.media.MediaPlayer();
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .build();
+            activeMediaPlayer.setAudioAttributes(audioAttributes);
+            activeMediaPlayer.setDataSource(getApplicationContext(), defaultSoundUri);
+            activeMediaPlayer.setLooping(false);
+            activeMediaPlayer.prepare();
+            activeMediaPlayer.start();
         } catch (Exception e) {
-            Log.w(TAG, "Ringtone play error", e);
+            Log.w(TAG, "MediaPlayer play failed, falling back to Ringtone", e);
+            try {
+                android.media.Ringtone ringtone = RingtoneManager.getRingtone(getApplicationContext(), defaultSoundUri);
+                if (ringtone != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        ringtone.setAudioAttributes(new AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build());
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ringtone.setVolume(1.0f);
+                    }
+                    ringtone.play();
+                }
+            } catch (Exception ignored) {}
         }
 
-        long[] vibrationPattern = new long[]{0, 800, 400, 800, 400, 800, 400, 800};
+        // 3. Strong vibration pattern
+        long[] vibrationPattern = new long[]{0, 1000, 500, 1000, 500, 1000, 500, 1000};
+        try {
+            android.os.Vibrator vibrator = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(vibrationPattern, -1));
+                } else {
+                    vibrator.vibrate(vibrationPattern, -1);
+                }
+            }
+        } catch (Exception ignored) {}
 
         NotificationCompat.Builder notificationBuilder =
                 new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -117,9 +155,9 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
 
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "New Order Loud Alarms",
+                    "SK Pizza Point Urgent Order Alarms",
                     NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription("Critical heads-up sound and vibration alerts for incoming orders");
+            channel.setDescription("Critical heads-up sound and vibration alerts for incoming customer orders");
             channel.enableVibration(true);
             channel.setVibrationPattern(vibrationPattern);
             channel.setSound(defaultSoundUri, audioAttributes);

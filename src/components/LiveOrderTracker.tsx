@@ -16,7 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Order, OrderStatus, LiveLocation } from '../types';
-import { useApp } from '../context/AppContext';
+import { useApp, isOrderLocked } from '../context/AppContext';
 import { InteractiveLiveMap } from './InteractiveLiveMap';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -337,8 +337,20 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
             )}
           </div>
 
-          {/* Real Interactive Street Map View: Activates when Rider is Out for Delivery with Live GPS */}
-          {order.status === 'Out for delivery' || riderLoc ? (
+          {/* Real Interactive Street Map View: Strictly activates when Rider picks up order ('Out for delivery'), and closes 10m after completion */}
+          {isOrderLocked(order) ? (
+            <div className="p-4 rounded-xl bg-neutral-800/80 border border-neutral-700 space-y-2 text-center py-6">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+              </div>
+              <h5 className="font-extrabold text-sm text-emerald-400">
+                Order Delivered &amp; Completed
+              </h5>
+              <p className="text-xs text-neutral-400 max-w-md mx-auto">
+                Live GPS tracking has concluded (10-minute window ended). Thank you for dining with SK Pizza Point!
+              </p>
+            </div>
+          ) : order.status === 'Out for delivery' ? (
             <div className="space-y-2">
               <InteractiveLiveMap
                 mode={isAdminView ? 'admin-view' : 'tracker'}
@@ -358,7 +370,7 @@ const LiveOrderTrackerInternal: React.FC<LiveOrderTrackerProps> = ({ order, isAd
                 Kitchen is Preparing Your Fresh Order
               </h5>
               <p className="text-[11px] text-neutral-400 max-w-md mx-auto">
-                Your pizza is being freshly baked with real mozzarella! Once our delivery partner picks up the order with live GPS, the live moving radar map will appear right here.
+                Your order is currently in the kitchen! Once the delivery boy picks up your order, the live moving delivery map will appear here.
               </p>
               {customerLoc && (
                 <p className="text-[10px] text-emerald-400 font-mono">

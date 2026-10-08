@@ -395,6 +395,20 @@ export const markOrderAsDeleted = (orderId: string) => {
   } catch {}
 };
 
+// Check if an order is completed/delivered and locked (cannot be reverted after 10 minutes)
+export const isOrderLocked = (order: Order | null | undefined): boolean => {
+  if (!order) return false;
+  const s = (order.status || '').toLowerCase().trim();
+  if (s !== 'completed' && s !== 'delivered') return false;
+  const compTime = order.completedAt
+    ? new Date(order.completedAt).getTime()
+    : order.updatedAt
+    ? new Date(order.updatedAt).getTime()
+    : 0;
+  if (!compTime || isNaN(compTime)) return false;
+  return Date.now() - compTime >= 10 * 60 * 1000; // 10 minutes limit
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -719,9 +733,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const userOrdersRef = ref(rtdb, `userOrders/${user.uid}`);
         unsubUserOrders = onValue(userOrdersRef, (snapshot) => {
           try {
+            const deletedIds = getDeletedOrderIds();
             if (snapshot.exists()) {
               const val = snapshot.val();
-              const deletedIds = getDeletedOrderIds();
               const rawList = Array.isArray(val)
                 ? val.filter(Boolean)
                 : Object.values(val || {}).filter(Boolean);
@@ -735,19 +749,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
               };
 
+              const sortedPersonal = personalOrders.sort(safeSort);
+
+              // 1. Authoritative update for logged in user across ANY browser
+              setMyOrders(sortedPersonal);
+              try {
+                localStorage.setItem('sk_pizza_my_orders', JSON.stringify(sortedPersonal.slice(0, 50)));
+              } catch {}
+
+              // 2. Sync into global orders map without resurrecting deleted orders
               setOrders((prev) => {
                 const map = new Map<string, Order>();
-                prev.forEach((o) => { if (o && o.id && !deletedIds.has(o.id)) map.set(o.id, o); });
-                personalOrders.forEach((o) => map.set(o.id, o));
+                prev.forEach((o) => {
+                  if (o && o.id && !deletedIds.has(o.id) && o.userId !== user.uid) {
+                    map.set(o.id, o);
+                  }
+                });
+                sortedPersonal.forEach((o) => map.set(o.id, o));
                 return Array.from(map.values()).sort(safeSort);
               });
-
-              setMyOrders((prev) => {
-                const map = new Map<string, Order>();
-                prev.forEach((o) => { if (o && o.id && !deletedIds.has(o.id)) map.set(o.id, o); });
-                personalOrders.forEach((o) => map.set(o.id, o));
-                return Array.from(map.values()).sort(safeSort);
-              });
+            } else {
+              // If user has no orders or admin deleted all orders:
+              setMyOrders([]);
+              try {
+                localStorage.removeItem('sk_pizza_my_orders');
+              } catch {}
+              setOrders((prev) => prev.filter((o) => o && o.userId !== user.uid));
             }
           } catch (err) {
             console.warn('Error reading user orders:', err);
@@ -864,7 +891,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
 
-    // Subscribe to cloud deleted orders list (permanently synchronizes deletions across all devices)
+    // Subscribe to cloud deleted orders list (permanently synchronizes deletions across all devices & browsers)
     const deletedOrdersRef = ref(rtdb, 'system/deletedOrderIds');
     const unsubDeletedOrders = onValue(deletedOrdersRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -874,6 +901,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ids.forEach((id) => local.add(id));
         try {
           localStorage.setItem('sk_pizza_deleted_orders', JSON.stringify(Array.from(local)));
+        } catch {}
+
+        // 1. Immediately purge deleted orders from active React state across all browsers/tabs
+        setOrders((prev) => prev.filter((o) => o && !local.has(o.id)));
+        setMyOrders((prev) => prev.filter((o) => o && !local.has(o.id)));
+        setActiveOrder((prev) => (prev && local.has(prev.id) ? null : prev));
+
+        // 2. Clean all local storage order caches so they never persist or reappear
+        try {
+          const savedLocal = localStorage.getItem('sk_pizza_local_orders');
+          if (savedLocal) {
+            const parsed = JSON.parse(savedLocal);
+            const cleaned = parsed.filter((o: any) => o && !local.has(o.id));
+            localStorage.setItem('sk_pizza_local_orders', JSON.stringify(cleaned));
+          }
+          const savedMy = localStorage.getItem('sk_pizza_my_orders');
+          if (savedMy) {
+            const parsed = JSON.parse(savedMy);
+            const cleaned = parsed.filter((o: any) => o && !local.has(o.id));
+            localStorage.setItem('sk_pizza_my_orders', JSON.stringify(cleaned));
+          }
+          const activeOrdRaw = localStorage.getItem('sk_pizza_active_order');
+          if (activeOrdRaw) {
+            const parsedAct = JSON.parse(activeOrdRaw);
+            if (parsedAct && local.has(parsedAct.id)) {
+              localStorage.removeItem('sk_pizza_active_order');
+            }
+          }
         } catch {}
       }
     });
@@ -918,8 +973,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             .filter((o): o is Order => o !== null && !deletedIds.has(o.id) && !isDemoRecord(o));
         }
 
-        // Clean up any deleted orders from local storage
+        // Clean up any deleted orders from local storage and active states
         if (deletedIds.size > 0) {
+          setMyOrders((prev) => prev.filter((o) => o && !deletedIds.has(o.id)));
+          setActiveOrder((prev) => (prev && deletedIds.has(prev.id) ? null : prev));
           try {
             const savedLocal = localStorage.getItem('sk_pizza_local_orders');
             if (savedLocal) {
@@ -932,6 +989,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const parsed: any[] = JSON.parse(savedMy);
               const cleaned = parsed.filter((o) => o && !deletedIds.has(o.id));
               localStorage.setItem('sk_pizza_my_orders', JSON.stringify(cleaned));
+            }
+            const act = localStorage.getItem('sk_pizza_active_order');
+            if (act) {
+              const parsed = JSON.parse(act);
+              if (parsed && deletedIds.has(parsed.id)) {
+                localStorage.removeItem('sk_pizza_active_order');
+              }
             }
           } catch {}
         }
@@ -1773,38 +1837,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateOrderStatus = useCallback(
     async (orderId: string, status: OrderStatus) => {
-      // 1. Optimistic local state update
+      const currentOrd = orders.find((o) => o.id === orderId);
+
+      // Check if order is completed and locked (cannot revert after 10 minutes)
+      if (currentOrd && isOrderLocked(currentOrd) && status !== 'Completed' && status !== 'Delivered') {
+        showToast('⚠️ This order was completed more than 10 minutes ago and cannot be changed back.', 'error');
+        return;
+      }
+
       const now = new Date().toISOString();
+      const isCompleting = status === 'Completed' || status === 'Delivered';
+      const completedAtTime = isCompleting ? (currentOrd?.completedAt || now) : undefined;
+
+      const orderPatch: Partial<Order> = {
+        status,
+        updatedAt: now,
+      };
+      if (isCompleting && !currentOrd?.completedAt) {
+        orderPatch.completedAt = completedAtTime;
+      }
+
+      // If completing order, stop rider GPS watcher and schedule live location shutdown after 10m
+      if (isCompleting) {
+        if (activeRiderWatchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(activeRiderWatchIdRef.current);
+          activeRiderWatchIdRef.current = null;
+        }
+
+        setTimeout(() => {
+          try {
+            update(ref(rtdb, `orders/${orderId}`), { deliveryRiderActive: false }).catch(() => {});
+            set(ref(rtdb, 'system/adminLiveLocation'), null).catch(() => {});
+          } catch {}
+        }, 10 * 60 * 1000);
+      }
+
+      // 1. Optimistic local state update
       setOrders((prev) => {
-        const next = prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: now } : o));
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...orderPatch } : o));
         try { localStorage.setItem('sk_pizza_local_orders', JSON.stringify(next.slice(0, 100))); } catch {}
         return next;
       });
       setMyOrders((prev) => {
-        const next = prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: now } : o));
+        const next = prev.map((o) => (o.id === orderId ? { ...o, ...orderPatch } : o));
         try { localStorage.setItem('sk_pizza_my_orders', JSON.stringify(next.slice(0, 50))); } catch {}
         return next;
       });
 
       // 2. Direct real-time cloud sync to Realtime Database
       try {
-        await update(ref(rtdb, `orders/${orderId}`), {
+        const rtdbPayload: Record<string, any> = {
           status,
           updatedAt: now,
-        });
+        };
+        if (completedAtTime) {
+          rtdbPayload.completedAt = completedAtTime;
+        }
 
-        const currentOrd = orders.find((o) => o.id === orderId);
+        await update(ref(rtdb, `orders/${orderId}`), rtdbPayload);
+
         if (currentOrd?.userId && currentOrd.userId !== 'guest') {
-          await update(ref(rtdb, `userOrders/${currentOrd.userId}/${orderId}`), {
-            status,
-            updatedAt: now,
-          }).catch(() => {});
+          await update(ref(rtdb, `userOrders/${currentOrd.userId}/${orderId}`), rtdbPayload).catch(() => {});
         }
         showToast(`Order #${orderId} moved to "${status}"`, 'success');
       } catch (err: unknown) {
         console.warn('Direct RTDB update error, attempting fallback:', err);
         try {
-          await updateCloudRecord('orders', orderId, { status, updatedAt: now });
+          await updateCloudRecord('orders', orderId, {
+            status,
+            updatedAt: now,
+            ...(completedAtTime ? { completedAt: completedAtTime } : {}),
+          });
           showToast(`Order #${orderId} moved to "${status}"`, 'success');
         } catch {
           showToast(`Order updated locally to "${status}"`, 'info');
@@ -2127,6 +2230,12 @@ _Please confirm this order and its preparation status._`;
   // Accept order with live location broadcast (Stops alarm, updates status, requests Admin GPS, streams live to customer)
   const acceptOrderWithLiveLocation = useCallback(
     async (orderId: string, targetStatus: OrderStatus = 'Preparing') => {
+      const currentOrd = orders.find((o) => o.id === orderId);
+      if (currentOrd && isOrderLocked(currentOrd) && targetStatus !== 'Completed' && targetStatus !== 'Delivered') {
+        showToast('⚠️ This order was completed more than 10 minutes ago and cannot be changed back.', 'error');
+        return;
+      }
+
       // 1. Stop continuous ringing alarm immediately
       soundAlerts.stopContinuousAlarm();
 

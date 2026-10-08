@@ -43,8 +43,9 @@ import {
   Store,
   Clock,
   MessageCircle,
+  Lock,
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, isOrderLocked } from '../context/AppContext';
 import { AdminLoginPage } from './AdminLoginPage';
 import { Product, OrderStatus, GalleryItem, VideoItem, PizzaSize, ProductCategory, AddOn, LiveLocation, Order } from '../types';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
@@ -1698,35 +1699,52 @@ const AdminDashboardContent: React.FC = () => {
                                 </select>
                               </td>
                               <td className="p-3.5 whitespace-nowrap">
-                                {order.customerLocation ? (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1">
+                                {order.customerLocation?.latitude ? (
+                                  <a
+                                    href={order.customerLocation.googleMapsLink || `https://www.google.com/maps?q=${order.customerLocation.latitude},${order.customerLocation.longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                                    title="Open customer location in Google Maps"
+                                  >
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                                    <span>📍 GPS Pinned</span>
-                                  </span>
+                                    <span>📍 Open Maps</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
                                 ) : (
                                   <span className="text-[11px] text-neutral-400">Text Address</span>
                                 )}
                               </td>
                               <td className="p-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                <select
-                                  value={order.status}
-                                  onChange={(e) => {
-                                    const nextSt = e.target.value as any;
-                                    if (nextSt === 'Preparing' || nextSt === 'Out for delivery' || nextSt === 'Ready for Pickup') {
-                                      acceptOrderWithLiveLocation(order.id, nextSt);
-                                    } else {
-                                      updateOrderStatus(order.id, nextSt);
-                                    }
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-[#1E1915] focus:outline-none cursor-pointer"
-                                >
-                                  <option value="Pending">1. Process (New Order)</option>
-                                  <option value="Preparing">2. Order Accept (Baking)</option>
-                                  <option value="Ready for Pickup">🛍️ Ready for Pickup</option>
-                                  <option value="Out for delivery">3. Order Pickup (Live Map)</option>
-                                  <option value="Delivered">4. Order Successfully</option>
-                                  <option value="Cancelled">❌ Cancelled</option>
-                                </select>
+                                {isOrderLocked(order) ? (
+                                  <span
+                                    className="px-2.5 py-1.5 rounded-xl bg-neutral-100 border border-neutral-300 text-neutral-600 text-xs font-black inline-flex items-center gap-1 cursor-not-allowed"
+                                    title="Order completed over 10 mins ago. Status permanently locked."
+                                  >
+                                    <Lock className="w-3 h-3 text-neutral-500" />
+                                    <span>Completed (Locked)</span>
+                                  </span>
+                                ) : (
+                                  <select
+                                    value={order.status}
+                                    onChange={(e) => {
+                                      const nextSt = e.target.value as any;
+                                      if (nextSt === 'Preparing' || nextSt === 'Out for delivery' || nextSt === 'Ready for Pickup') {
+                                        acceptOrderWithLiveLocation(order.id, nextSt);
+                                      } else {
+                                        updateOrderStatus(order.id, nextSt);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-white text-xs font-bold text-[#1E1915] focus:outline-none cursor-pointer"
+                                  >
+                                    <option value="Pending">1. Process (New Order)</option>
+                                    <option value="Preparing">2. Order Accept (Baking)</option>
+                                    <option value="Ready for Pickup">🛍️ Ready for Pickup</option>
+                                    <option value="Out for delivery">3. Order Pickup (Live Map)</option>
+                                    <option value="Delivered">4. Order Successfully</option>
+                                    <option value="Cancelled">❌ Cancelled</option>
+                                  </select>
+                                )}
                               </td>
                               <td className="p-3.5 text-right whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1799,36 +1817,46 @@ const AdminDashboardContent: React.FC = () => {
                             {/* Status Quick Updater Buttons */}
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="text-xs font-bold text-[#55473E] mr-1">Move To:</span>
-                              {primaryStatuses.map((st) => (
-                                <button
-                                  key={st}
-                                  type="button"
-                                  onClick={() => {
-                                    if (st === 'Preparing' || st === 'Out for delivery' || st === 'Ready for Pickup') {
-                                      acceptOrderWithLiveLocation(order.id, st);
-                                    } else {
-                                      updateOrderStatus(order.id, st);
-                                    }
-                                  }}
-                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                    order.status === st
-                                      ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400/40 shadow-xs'
-                                      : 'bg-neutral-100 hover:bg-amber-100 text-[#55473E]'
-                                  }`}
+                              {isOrderLocked(order) ? (
+                                <span
+                                  className="px-3 py-1 rounded-xl bg-neutral-100 border border-neutral-300 text-neutral-600 text-xs font-bold inline-flex items-center gap-1.5 cursor-not-allowed"
+                                  title="Order completed over 10 minutes ago. Workflow permanently finalized."
                                 >
-                                  {st === 'Pending'
-                                    ? '1. Process'
-                                    : st === 'Preparing'
-                                    ? '2. Order Accept'
-                                    : st === 'Ready for Pickup'
-                                    ? '🛍️ Ready for Pickup'
-                                    : st === 'Out for delivery'
-                                    ? '3. Order Pickup'
-                                    : st === 'Delivered'
-                                    ? '4. Order Successfully'
-                                    : '❌ Cancelled'}
-                                </button>
-                              ))}
+                                  <Lock className="w-3.5 h-3.5 text-neutral-500" />
+                                  <span>Completed &amp; Locked (Cannot revert after 10m)</span>
+                                </span>
+                              ) : (
+                                primaryStatuses.map((st) => (
+                                  <button
+                                    key={st}
+                                    type="button"
+                                    onClick={() => {
+                                      if (st === 'Preparing' || st === 'Out for delivery' || st === 'Ready for Pickup') {
+                                        acceptOrderWithLiveLocation(order.id, st);
+                                      } else {
+                                        updateOrderStatus(order.id, st);
+                                      }
+                                    }}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                      order.status === st
+                                        ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400/40 shadow-xs'
+                                        : 'bg-neutral-100 hover:bg-amber-100 text-[#55473E]'
+                                    }`}
+                                  >
+                                    {st === 'Pending'
+                                      ? '1. Process'
+                                      : st === 'Preparing'
+                                      ? '2. Order Accept'
+                                      : st === 'Ready for Pickup'
+                                      ? '🛍️ Ready for Pickup'
+                                      : st === 'Out for delivery'
+                                      ? '3. Order Pickup'
+                                      : st === 'Delivered'
+                                      ? '4. Order Successfully'
+                                      : '❌ Cancelled'}
+                                  </button>
+                                ))
+                              )}
 
                               {/* Payment Status Dropdown */}
                               <div className="ml-2 flex items-center gap-1">

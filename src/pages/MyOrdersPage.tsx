@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getDeletedOrderIds } from '../context/AppContext';
 import {
   ShoppingBag,
   ArrowLeft,
@@ -65,15 +65,16 @@ export const MyOrdersPage: React.FC = () => {
 
   // Combine device myOrders + currentUser orders + global orders matching phone/email/id
   const combinedOrdersMap = new Map<string, Order>();
+  const deletedIds = getDeletedOrderIds();
 
-  // 1. First add device orders (guaranteed local storage persistence)
+  // 1. First add device orders (excluding deleted orders)
   (Array.isArray(myOrders) ? myOrders : []).forEach((o) => {
-    if (o && o.id) combinedOrdersMap.set(o.id, o);
+    if (o && o.id && !deletedIds.has(o.id)) combinedOrdersMap.set(o.id, o);
   });
 
-  // 2. Add any matching user orders
+  // 2. Add any matching user orders (excluding deleted orders)
   (Array.isArray(orders) ? orders : []).forEach((o) => {
-    if (!o || !o.id) return;
+    if (!o || !o.id || deletedIds.has(o.id)) return;
     if (combinedOrdersMap.has(o.id)) {
       // Keep newer version
       const existing = combinedOrdersMap.get(o.id)!;

@@ -53,7 +53,7 @@ export function getGoogleMapsPinUrl(lat: number, lon: number): string {
   return `https://www.google.com/maps?q=${lat},${lon}`;
 }
 
-// Reverse geocode lat/lon to human readable address with timeout safeguard
+// Reverse geocode lat/lon to human readable address with dual-service fallback
 export async function reverseGeocodeCoords(lat: number, lon: number): Promise<{
   fullAddress: string;
   road: string;
@@ -61,15 +61,16 @@ export async function reverseGeocodeCoords(lat: number, lon: number): Promise<{
   postcode: string;
 }> {
   const fallback = {
-    fullAddress: `Location at ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+    fullAddress: `Pinned GPS Location (${lat.toFixed(5)}, ${lon.toFixed(5)})`,
     road: '',
     city: 'Gwalior',
     postcode: '474006',
   };
 
+  // Service 1: OpenStreetMap Nominatim
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000); // 4s timeout
+    const timer = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
 
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,
@@ -80,26 +81,58 @@ export async function reverseGeocodeCoords(lat: number, lon: number): Promise<{
     );
     clearTimeout(timer);
 
-    if (!res.ok) return fallback;
-    const data = await res.json();
-    if (data?.address) {
-      const road = data.address.road || data.address.neighbourhood || data.address.suburb || '';
-      const area = data.address.suburb || data.address.city_district || data.address.village || '';
-      const city = data.address.city || data.address.town || data.address.state_district || 'Gwalior';
-      const postcode = data.address.postcode || '';
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.address) {
+        const road = data.address.road || data.address.neighbourhood || data.address.suburb || '';
+        const area = data.address.suburb || data.address.city_district || data.address.village || '';
+        const city = data.address.city || data.address.town || data.address.state_district || 'Gwalior';
+        const postcode = data.address.postcode || '';
 
-      const roadText = [road, area].filter(Boolean).join(', ');
-      const full = data.display_name || [roadText, city, postcode].filter(Boolean).join(', ');
+        const roadText = [road, area].filter(Boolean).join(', ');
+        const full = data.display_name || [roadText, city, postcode].filter(Boolean).join(', ');
+
+        if (full) {
+          return {
+            fullAddress: full,
+            road: roadText || road || area,
+            city,
+            postcode,
+          };
+        }
+      }
+    }
+  } catch {
+    // Proceed to Service 2
+  }
+
+  // Service 2: BigDataCloud Client Reverse Geocode (Reliable, fast, no rate-limits)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+
+    const bdcRes = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timer);
+
+    if (bdcRes.ok) {
+      const bdcData = await bdcRes.json();
+      const locality = bdcData.locality || bdcData.city || '';
+      const area = bdcData.principalSubdivision || '';
+      const postcode = bdcData.postcode || '';
+      const street = [bdcData.locality, bdcData.principalSubdivision].filter(Boolean).join(', ');
 
       return {
-        fullAddress: full || fallback.fullAddress,
-        road: roadText,
-        city,
+        fullAddress: [locality, area, bdcData.countryName].filter(Boolean).join(', ') || fallback.fullAddress,
+        road: locality || street,
+        city: bdcData.city || locality || 'Gwalior',
         postcode,
       };
     }
   } catch {
-    // Fail silently and return fallback
+    // Return coordinate fallback
   }
 
   return fallback;

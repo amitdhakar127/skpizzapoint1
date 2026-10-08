@@ -117,6 +117,7 @@ export interface Order {
   deliveryRiderActive?: boolean;
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
   whatsAppOpenedAt?: string;
 }
 

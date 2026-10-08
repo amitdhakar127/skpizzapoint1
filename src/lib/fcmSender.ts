@@ -167,7 +167,7 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
     const title = '🚨 NEW ORDER RECEIVED! — SK Pizza Point';
     const body = `Order #${order.id} from ${order.customerName} (₹${order.finalTotal}): ${itemsSummary}`;
 
-    const dataPayload = {
+    const dataPayload: Record<string, string> = {
       orderId: String(order.id),
       customerName: String(order.customerName || 'Customer'),
       customerPhone: String(order.customerPhone || ''),
@@ -177,19 +177,14 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
       title: title,
       body: body,
       url: '/#/admin',
+      channelId: 'sk_pizza_order_alerts_v3',
+      type: 'new_order_urgent_alarm',
     };
 
+    // Android high priority configuration (Data-only delivery wakes onMessageReceived even in Doze/Screen-off)
     const androidConfig = {
       priority: 'HIGH',
-      notification: {
-        sound: 'default',
-        channel_id: 'sk_pizza_order_alerts',
-        priority: 'MAX',
-        notification_priority: 'PRIORITY_MAX',
-        default_sound: true,
-        default_vibrate_timings: true,
-        visibility: 'PUBLIC',
-      },
+      ttl: '86400s',
     };
 
     const webpushConfig = {
@@ -197,22 +192,21 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
         Urgency: 'high',
       },
       notification: {
+        title,
+        body,
         icon: 'https://i.imgur.com/x7VzA1Q.jpeg',
         badge: 'https://i.imgur.com/x7VzA1Q.jpeg',
         requireInteraction: true,
       },
+      data: dataPayload,
     };
 
     const sendPromises: Promise<any>[] = [];
 
-    // A. Broadcast to topic 'admin_orders' (received by all subscribed Android Admin APKs)
+    // A. Broadcast to topic 'admin_orders' (Pure high-priority DATA payload for Android APK so onMessageReceived triggers with WakeLock & Siren)
     const topicPayload = {
       message: {
         topic: 'admin_orders',
-        notification: {
-          title,
-          body,
-        },
         data: dataPayload,
         android: androidConfig,
       },
@@ -232,7 +226,7 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
       )
         .then((r) => {
           if (r.ok) {
-            console.log('✓ FCM push dispatched to topic admin_orders');
+            console.log('✓ FCM push dispatched to topic admin_orders (Data-only urgent wakeup)');
           } else {
             r.text().then((t) => console.warn('FCM topic send warning:', t));
           }
@@ -246,25 +240,23 @@ export async function sendOrderPushNotification(order: Order): Promise<void> {
         const tokensSnap = await get(ref(rtdb, 'system/adminFcmTokens')).catch(() => null);
         if (tokensSnap && tokensSnap.exists()) {
           const tokensVal = tokensSnap.val();
-          const tokenList: string[] = [];
+          const tokenList: { token: string; isAndroid: boolean }[] = [];
           Object.values(tokensVal).forEach((entry: any) => {
             const t = entry?.token || entry;
             if (typeof t === 'string' && t.trim().length > 10) {
-              tokenList.push(t.trim());
+              const isAndroid = entry?.platform === 'android_admin_apk' || !entry?.platform;
+              tokenList.push({ token: t.trim(), isAndroid });
             }
           });
 
-          tokenList.forEach((fcmToken) => {
+          tokenList.forEach(({ token: fcmToken, isAndroid }) => {
             const tokenPayload = {
               message: {
                 token: fcmToken,
-                notification: {
-                  title,
-                  body,
-                },
                 data: dataPayload,
                 android: androidConfig,
                 webpush: webpushConfig,
+                ...(isAndroid ? {} : { notification: { title, body } }),
               },
             };
 

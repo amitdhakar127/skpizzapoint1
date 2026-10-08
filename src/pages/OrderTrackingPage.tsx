@@ -7,7 +7,7 @@ import { Order } from '../types';
 
 import { rtdb } from '../lib/firebase';
 import { ref, get } from 'firebase/database';
-import { normalizeOrder } from '../context/AppContext';
+import { normalizeOrder, getDeletedOrderIds } from '../context/AppContext';
 
 interface OrderTrackingPageProps {
   orderIdParam?: string;
@@ -19,10 +19,11 @@ const OrderTrackingPageInternal: React.FC<OrderTrackingPageProps> = ({ orderIdPa
   const [directCloudOrder, setDirectCloudOrder] = useState<Order | null>(null);
   const [isSearchingCloud, setIsSearchingCloud] = useState<boolean>(false);
 
-  // Combine ONLY this device's own orders (myOrders) + this logged-in customer's own orders (userOrders)
+  // Combine ONLY this device's own orders (myOrders) + this logged-in customer's own orders (userOrders), excluding deleted
+  const deletedIds = getDeletedOrderIds();
   const candidateOrdersMap = new Map<string, Order>();
   (myOrders || []).forEach((o) => {
-    if (o && o.id) candidateOrdersMap.set(o.id, o);
+    if (o && o.id && !deletedIds.has(o.id)) candidateOrdersMap.set(o.id, o);
   });
 
   const displayOrders = Array.from(candidateOrdersMap.values()).sort(

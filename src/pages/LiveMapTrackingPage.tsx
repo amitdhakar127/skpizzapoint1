@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   Calendar,
 } from 'lucide-react';
-import { useApp, normalizeOrder } from '../context/AppContext';
+import { useApp, normalizeOrder, isOrderLocked } from '../context/AppContext';
 import { Order, LiveLocation } from '../types';
 import { rtdb } from '../lib/firebase';
 import { ref, onValue, off, get } from 'firebase/database';
@@ -149,12 +149,12 @@ const LiveMapTrackingPageInternal: React.FC<LiveMapTrackingPageProps> = ({ order
   const customerLoc: LiveLocation | null = currentOrder?.customerLocation || null;
 
   // Has the order been picked up?
-  // Only activate live map if status is 'Out for delivery' / 'Ready for Pickup' / 'Delivered' / 'Completed'
+  // Only activate live map if status is 'Out for delivery' / 'Ready for Pickup', and not past 10m completion lock
+  const isCompletedLocked = isOrderLocked(currentOrder);
   const isPickedUp =
-    currentOrder?.status === 'Out for delivery' ||
-    currentOrder?.status === 'Ready for Pickup' ||
-    currentOrder?.status === 'Delivered' ||
-    currentOrder?.status === 'Completed';
+    !isCompletedLocked &&
+    (currentOrder?.status === 'Out for delivery' ||
+     currentOrder?.status === 'Ready for Pickup');
 
   // Distance and ETA
   const distanceKm =

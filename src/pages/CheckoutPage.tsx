@@ -22,7 +22,6 @@ import confetti from 'canvas-confetti';
 import { useApp } from '../context/AppContext';
 import { Order, LiveLocation } from '../types';
 import { LiveOrderTracker } from '../components/LiveOrderTracker';
-import { InteractiveLiveMap } from '../components/InteractiveLiveMap';
 import {
   acquireLiveLocation,
   calculateDistanceKm,
@@ -99,15 +98,6 @@ export const CheckoutPage: React.FC = () => {
       setLocationError('Could not auto-fetch GPS. Please drag the pin on the map below.');
       return null;
     }
-  };
-
-  const handleMapLocationPicked = (loc: LiveLocation) => {
-    setCustomerLocation(loc);
-    if (loc.addressText && !deliveryAddress) {
-      setDeliveryAddress(loc.addressText);
-    }
-    setLocationError(null);
-    showToast('✓ Address location updated from map pin!', 'success');
   };
 
   // Sync if userProfile loads asynchronously
@@ -661,20 +651,7 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Interactive Map Picker (Zomato / Swiggy style pin placement) */}
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-xs font-black uppercase tracking-wider text-[#6B5B4F] flex items-center justify-between">
-                      <span>📍 Verify or Adjust Exact Pin on Live Map:</span>
-                      <span className="text-amber-800 font-bold text-[11px]">Interactive Live Map</span>
-                    </span>
-                    <InteractiveLiveMap
-                      mode="picker"
-                      customerLocation={customerLocation}
-                      onLocationChange={handleMapLocationPicked}
-                      height="260px"
-                    />
-                  </div>
-                </div>
+            </div>
 
                 {/* Delivery Address fields only for Delivery orders */}
                 {orderType === 'delivery' && (

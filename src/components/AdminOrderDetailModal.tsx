@@ -19,9 +19,10 @@ import {
   ShieldCheck,
   Navigation,
   Trash2,
+  Lock,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
-import { useApp } from '../context/AppContext';
+import { useApp, isOrderLocked } from '../context/AppContext';
 import { getGoogleMapsNavigationUrl, getGoogleMapsPinUrl, STORE_GOOGLE_MAPS_URL } from '../lib/locationService';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -159,20 +160,31 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
               </span>
             </div>
 
+            {isOrderLocked(order) && (
+              <div className="p-2.5 rounded-2xl bg-neutral-100 border border-neutral-300 text-neutral-700 text-xs font-bold flex items-center gap-2">
+                <Lock className="w-4 h-4 text-neutral-600 shrink-0" />
+                <span>🔒 Order Completed &amp; Locked: 10 minutes have elapsed since completion. The workflow is permanently locked and cannot be moved back to pickup or accept.</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               {/* Step 1: Process */}
               <button
                 type="button"
+                disabled={isOrderLocked(order)}
                 onClick={async () => {
+                  if (isOrderLocked(order)) return;
                   await updateOrderStatus(order.id, 'Pending');
                   showToast('📝 1. Process: Status set to In Process.', 'info');
                 }}
-                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                  order.status === 'Pending' || order.status === 'Received'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs'
-                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200'
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all ${
+                  isOrderLocked(order)
+                    ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400 border border-neutral-200'
+                    : order.status === 'Pending' || order.status === 'Received'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs cursor-pointer'
+                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200 cursor-pointer'
                 }`}
-                title="1. Process: Order received and in process"
+                title={isOrderLocked(order) ? "Locked (Order completed > 10m ago)" : "1. Process: Order received and in process"}
               >
                 <span className="text-sm">📝</span>
                 <span className="text-[11px] font-black">1. Process</span>
@@ -182,18 +194,22 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
               {/* Step 2: Order Accept */}
               <button
                 type="button"
+                disabled={isOrderLocked(order)}
                 onClick={async () => {
+                  if (isOrderLocked(order)) return;
                   await acceptOrderWithLiveLocation(order.id, 'Preparing');
                   const url = generateCustomerStatusWhatsAppUrl(order, 'Preparing');
                   window.open(url, '_blank', 'noopener,noreferrer');
                   showToast('✓ 2. Order Accept: Status updated on website & WhatsApp opened!', 'success');
                 }}
-                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                  order.status === 'Preparing'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs'
-                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200'
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all ${
+                  isOrderLocked(order)
+                    ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400 border border-neutral-200'
+                    : order.status === 'Preparing'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 shadow-xs cursor-pointer'
+                    : 'bg-white hover:bg-amber-100 text-[#55473E] border border-amber-200 cursor-pointer'
                 }`}
-                title="2. Order Accept: Click to accept, update website and open customer WhatsApp"
+                title={isOrderLocked(order) ? "Locked (Order completed > 10m ago)" : "2. Order Accept: Click to accept, update website and open customer WhatsApp"}
               >
                 <span className="text-sm">🍕</span>
                 <span className="text-[11px] font-black">2. Order Accept</span>
@@ -203,18 +219,22 @@ const AdminOrderDetailModalInternal: React.FC<AdminOrderDetailModalProps> = ({ o
               {/* Step 3: Order Pickup */}
               <button
                 type="button"
+                disabled={isOrderLocked(order)}
                 onClick={async () => {
+                  if (isOrderLocked(order)) return;
                   await acceptOrderWithLiveLocation(order.id, 'Out for delivery');
                   const url = generateCustomerStatusWhatsAppUrl(order, 'Out for delivery');
                   window.open(url, '_blank', 'noopener,noreferrer');
                   showToast('🛵 3. Order Pickup: Live GPS connected & Live Map sent on WhatsApp!', 'success');
                 }}
-                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all cursor-pointer ${
-                  order.status === 'Out for delivery' || order.status === 'Ready for Pickup'
-                    ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-xs'
-                    : 'bg-white hover:bg-blue-50 text-[#55473E] border border-blue-200'
+                className={`py-2 px-2 rounded-xl font-black flex flex-col items-center justify-center text-center gap-0.5 transition-all ${
+                  isOrderLocked(order)
+                    ? 'opacity-40 cursor-not-allowed bg-neutral-100 text-neutral-400 border border-neutral-200'
+                    : order.status === 'Out for delivery' || order.status === 'Ready for Pickup'
+                    ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-xs cursor-pointer'
+                    : 'bg-white hover:bg-blue-50 text-[#55473E] border border-blue-200 cursor-pointer'
                 }`}
-                title="3. Order Pickup: Click to acquire live GPS, update website and send Live Map link on WhatsApp"
+                title={isOrderLocked(order) ? "Locked (Order completed > 10m ago)" : "3. Order Pickup: Click to acquire live GPS, update website and send Live Map link on WhatsApp"}
               >
                 <span className="text-sm">🛵</span>
                 <span className="text-[11px] font-black">3. Order Pickup</span>
