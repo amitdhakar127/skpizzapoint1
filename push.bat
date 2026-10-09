@@ -12,7 +12,7 @@ git add -A
 
 echo.
 echo [2/3] Creating commit with all fixes...
-git commit -m "fix: sync deleted orders across browsers, 10m order complete lock, background push alarm alerts, real GPS checkout"
+git commit -m "feat: launch checklist, local SEO schema, sitemap, robots, 404 & thank-you pages, honeypot protection"
 
 echo.
 echo [3/3] Pushing to GitHub (git push origin main)...
